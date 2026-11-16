@@ -489,10 +489,10 @@ function lightColors(sc) {
 }
 
 // 白字背后允许的最高相对亮度：0.26 约合白字 3.4:1（大字够，小字差一点）；面板底色 0.2 约合 4.2:1
-const TEXT_LUM = Number(params.get("textLum") || 1), PANEL_LUM = Number(params.get("panelLum") || 0.24);
+const TEXT_LUM = Number(params.get("textLum") || 1), PANEL_LUM = Number(params.get("panelLum") || (OLD ? 0.24 : 0.15));   // 新面板整体再暗一些：白字对比度中位约 5:1
 // 新配色与新面板的参数（网址可调）：depth 云暗部保留多少、ambSky 背阴面染多少天空色、pmip 面板按多大一片压暗、pcap 面板个别亮点的软上限
 const DEPTH = Number(params.get("depth") || 0.55), AMB_SKY = Number(params.get("ambSky") || 0.4);
-const PANEL_MIP = Number(params.get("pmip") || 7.5), PANEL_CAP = Number(params.get("pcap") || 0.42), FROST = Number(params.get("frost") || 32);
+const PANEL_MIP = Number(params.get("pmip") || 7.5), PANEL_CAP = Number(params.get("pcap") || 0.24), FROST = Number(params.get("frost") || 32);
 const PANEL_TINT = Number(params.get("ptint") ?? 0.3);
 class WeatherTexCard {
   constructor(el, canvas, cssW, cssH, sc, panels, texts = []) {
