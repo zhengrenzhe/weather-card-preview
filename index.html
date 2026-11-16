@@ -32,6 +32,11 @@ figcaption { font-size: 13px; color: #aab5c4; margin: 8px 0 0; }
 .card.m { width: min(528px, calc(100vw - 40px)); height: 172px; }
 .card.l { width: min(528px, calc(100vw - 40px)); height: 360px; }
 @media (max-width: 600px) { .bar { position: static; } }
+/* bare=1：只显示卡片（对比页用 iframe 嵌入） */
+body.bare { background: transparent; min-height: 0; }
+.bare .bar, .bare .stat, .bare #gal-title, .bare #gallery { display: none; }
+.bare main { padding: 0; }
+.bare .card.l, .bare .card.m { width: 100vw; }
 canvas.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 .content { position: absolute; inset: 0; padding: 14px 16px; display: flex; flex-direction: column; text-shadow: 0 1px 2px rgba(0, 0, 0, .22); }
@@ -101,7 +106,14 @@ const SUNRISE = 6.45, SUNSET = 17.95, MOON_PHASE = 0.32;
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const condById = (id) => CONDITIONS.find((c) => c.id === id);
 // 云贴图（实拍照片抠掉蓝天后只留亮度与透明度，横向无缝平铺）；full 表示整幅云层（不透明，阴雨天用）
-const TEX = window.CLOUD_TEX || {};
+// v=old：改之前的效果（旧贴图、旧配色、旧面板），并排对比用
+const OLD = params.get("v") === "old";
+// 新抠图只换了抠出来的三类（整幅的阴雨贴图没变）
+const RETOUCHED = ["field", "cumulus", "bank"];
+const TEX = Object.fromEntries(Object.entries(window.CLOUD_TEX || {}).map(([k, list]) => [k, list.map((s) => (OLD || !RETOUCHED.includes(k) ? s : s.replace("tex2/", "tex3/")))]));
+if (params.get("bare") === "1") document.body.classList.add("bare");
+// ofs：各层贴图的起始位置固定（对比页让改前改后的云在同一处）；不给就随机
+const FIXED_OFS = params.has("ofs") ? Number(params.get("ofs")) : null;
 // 每种天气的层（远到近）：贴图类别、贴图上下沿落在卡片的哪里（0 顶、1 底，可超出卡片）、横向缩放、速度（每秒移动贴图宽度的比例）、不透明度
 const LAYERS = {
   clear: [],
@@ -161,6 +173,7 @@ uniform vec2 u_sun, u_moon; uniform float u_sunVis, u_moonVis, u_moonPhase, u_st
 uniform vec3 u_litCol, u_shadeCol;
 uniform float u_back;   // 逆光强度：太阳在云后方附近时，云体变暗、薄处透亮
 uniform float u_dark, u_rain, u_heavy, u_snow, u_fog, u_wind, u_flash; uniform vec3 u_fogCol;
+uniform float u_v3, u_depth, u_ambSky;   // 新配色开关、云暗部保留多少（1 = 照片原样）、背阴面染多少天空色
 out vec4 o;
 ${HASH}
 float vn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
@@ -192,6 +205,7 @@ void main(){
   float y = 1.0 - uv.y;
   vec2 q = vec2(uv.x * u_aspect, y);
   vec3 col = y < 0.55 ? mix(u_top, u_mid, y / 0.55) : mix(u_mid, u_bot, (y - 0.55) / 0.45);
+  vec3 skyBase = col;   // 这里的天空色（不含太阳光晕），用来给云的背阴面染色
   vec2 sp = vec2(u_sun.x * u_aspect, u_sun.y);
   float ds = length(q - sp);
   col += u_glow * u_sunVis * (0.4 * exp(-ds * 3.2) + 0.55 * exp(-ds * ds * 70.0));
@@ -227,8 +241,18 @@ void main(){
     float thick = full ? 1.0 : layerTex(i, tuv, 3.0).a;   // 附近一圈的云量，当作厚度
     float a = c.a * lp.w * (full ? 1.0 : smoothstep(0.0, 0.06, v) * smoothstep(1.0, 0.92, v));
     float lum = c.r;
-    // 照片的明暗就是云的立体感，原样保留（不拉对比）；只换光的颜色：亮处主要受阳光，暗处主要受天光
-    vec3 front = lum * mix(u_shadeCol, u_litCol, smoothstep(0.35, 1.0, lum));
+    vec3 front;
+    if (u_v3 > 0.5 && !full) {
+      // 照片是对着很深的蓝天拍的，云的暗部放到我们更亮的天上显得灰脏：整体提亮、保留明暗层次。
+      // 背阴面受天光照，按这里的天空色染（白天偏蓝）；中性灰挨着饱和的蓝天会被看成发黄发褐，就是"油腻"的来源之一
+      float L = 1.0 - (1.0 - lum) * u_depth;
+      vec3 skyN = skyBase / max(max(skyBase.r, skyBase.g), max(skyBase.b, 1e-3));
+      vec3 shade = dot(u_shadeCol, vec3(0.2126, 0.7152, 0.0722)) * mix(vec3(1.0), skyN, u_ambSky);
+      front = L * mix(shade, u_litCol, smoothstep(0.35, 1.0, lum));
+    } else {
+      // 旧：照片的明暗原样保留，只换光的颜色：亮处主要受阳光，暗处主要受天光
+      front = lum * mix(u_shadeCol, u_litCol, smoothstep(0.35, 1.0, lum));
+    }
     // 逆光：离太阳越近越明显；云体略压暗，薄处透出太阳的颜色
     vec2 cq = vec2(uv.x * u_aspect, y);
     float back = u_back * exp(-length(cq - sp) * 3.5);     // 只有太阳正后方附近的云才明显逆光
@@ -265,6 +289,7 @@ uniform vec2 u_res; uniform float u_dpr; uniform float u_time;
 uniform vec4 u_panels[3]; uniform int u_nPanels; uniform float u_rows;
 uniform vec4 u_texts[4]; uniform int u_nTexts;       // 顶部文字块（CSS 像素）
 uniform float u_textLum, u_panelLum;                 // 文字背后、面板底色允许的最高相对亮度
+uniform float u_v3, u_pmip, u_pcap;                  // 新面板开关、按多大一片的平均亮度压暗（多级纹理层级）、个别亮点的软上限
 uniform float u_snowAmt;
 out vec4 o;
 ${HASH}
@@ -273,6 +298,19 @@ float snowAt(int row, float xNorm){ return texture(u_snowH, vec2(xNorm, (float(r
 float relLum(vec3 c){ return dot(pow(max(c, 0.0), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722)); }
 // 把颜色压暗到相对亮度不超过 lim（只压亮的地方，蓝天、夜空不动）
 float capTo(vec3 c, float lim){ return pow(min(1.0, lim / max(relLum(c), 1e-4)), 1.0 / 2.2); }
+uniform float u_frost;   // 新面板的模糊半径（CSS 像素）
+uniform vec3 u_ptintCol; uniform float u_ptint;   // 新面板的玻璃色（压暗的天顶色）与染色比例：压暗的暖色不再发棕
+// 大半径磨砂：在中间层级的多级纹理上按两圈取样再平均，比直接取很粗的层级平滑（粗层级放大后会出现方块）
+vec3 frost(vec2 uv){
+  vec2 px = u_dpr / u_res;
+  vec3 s = textureLod(u_sky, uv, 4.0).rgb * 2.0;
+  for (int i = 0; i < 8; i++) {
+    float a = float(i) * 0.7853982;
+    s += textureLod(u_sky, uv + vec2(cos(a + 0.39), sin(a + 0.39)) * u_frost * 0.5 * px, 4.2).rgb * 1.5;
+    s += textureLod(u_sky, uv + vec2(cos(a), sin(a)) * u_frost * px, 4.6).rgb;
+  }
+  return s / 22.0;
+}
 void main(){
   vec2 frag = gl_FragCoord.xy;
   vec2 uv = frag / u_res;
@@ -294,10 +332,24 @@ void main(){
     if (d < 0.0) {
       // 磨砂玻璃：取模糊层级，亮部按亮度平滑压缩到上限以内（暗处几乎不变）。
       // 明暗顺序和色相都不变：玻璃后面的白云仍是比蓝天亮的柔影，不会变成灰斑
-      vec3 b = textureLod(u_sky, uv, 4.2).rgb * 0.92;
-      float Lb = relLum(b);
-      float Lo = u_panelLum * (1.0 - exp(-Lb / u_panelLum));
-      b *= pow(Lo / max(Lb, 1e-5), 1.0 / 2.2);
+      vec3 b = (u_v3 > 0.5 ? frost(uv) : textureLod(u_sky, uv, 4.2).rgb) * 0.92;
+      if (u_v3 > 0.5) {
+        // 新：像有色玻璃，按周围一大片的平均亮度整体压暗，玻璃后的白云仍比旁边的蓝天亮；
+        // 旧做法逐像素把亮处压到上限，白云被压得和蓝天一样亮，成了褐灰色的团
+        float Lw = relLum(textureLod(u_sky, uv, u_pmip).rgb * 0.92);
+        b *= pow(min(1.0, u_panelLum / max(Lw, 1e-4)), 1.0 / 2.2);
+        float Lb = relLum(b);
+        if (Lb > u_panelLum) {   // 超出的个别亮处再软压到 u_pcap 以内
+          float Lo = u_panelLum + (u_pcap - u_panelLum) * (1.0 - exp(-(Lb - u_panelLum) / (u_pcap - u_panelLum)));
+          b *= pow(Lo / Lb, 1.0 / 2.2);
+        }
+        // 玻璃带一点天顶的颜色（按亮度换算，不改明暗）：黄昏压暗的桃色云影偏向蓝紫，不发棕
+        b = mix(b, u_ptintCol * (relLum(b) > 0.0 ? pow(relLum(b) / max(relLum(u_ptintCol), 1e-4), 1.0 / 2.2) : 0.0), u_ptint);
+      } else {
+        float Lb = relLum(b);
+        float Lo = u_panelLum * (1.0 - exp(-Lb / u_panelLum));
+        b *= pow(Lo / max(Lb, 1e-5), 1.0 / 2.2);
+      }
       col = mix(col, b, smoothstep(0.0, -1.0, d));
       col += vec3(1.0) * 0.08 * smoothstep(-1.4, -0.4, d);   // 内描边
     }
@@ -423,7 +475,7 @@ function lightColors(sc) {
   // 正午近白（天光略偏蓝）、黄金时刻暖、日落后粉紫、夜里月光冷蓝；阴天阳光照不透，整体成中灰；雨天再压暗
   const e = sc.e, night = clamp((-e - 0.05) / 0.25), gray = sc.c.gray ?? 0;
   const golden = sc.golden * (1 - 0.7 * gray), dusk = clamp(-e / 0.12) * (1 - night) * (1 - 0.6 * gray);
-  let lit = mixLab(lab("#fffaf2"), lab("#ffc58e"), golden);
+  let lit = mixLab(lab(OLD ? "#fffaf2" : "#ffffff"), lab("#ffc58e"), golden);   // 新：正午的阳光是白的，奶油色让云发黄
   lit = mixLab(lit, lab("#f0aeb4"), dusk);
   lit = mixLab(lit, lab("#c2c8d0"), gray * 0.85 * (1 - night));
   lit = mixLab(lit, lab("#5d6884"), night);
@@ -438,6 +490,10 @@ function lightColors(sc) {
 
 // 白字背后允许的最高相对亮度：0.26 约合白字 3.4:1（大字够，小字差一点）；面板底色 0.2 约合 4.2:1
 const TEXT_LUM = Number(params.get("textLum") || 1), PANEL_LUM = Number(params.get("panelLum") || 0.24);
+// 新配色与新面板的参数（网址可调）：depth 云暗部保留多少、ambSky 背阴面染多少天空色、pmip 面板按多大一片压暗、pcap 面板个别亮点的软上限
+const DEPTH = Number(params.get("depth") || 0.55), AMB_SKY = Number(params.get("ambSky") || 0.4);
+const PANEL_MIP = Number(params.get("pmip") || 7.5), PANEL_CAP = Number(params.get("pcap") || 0.42), FROST = Number(params.get("frost") || 32);
+const PANEL_TINT = Number(params.get("ptint") ?? 0.3);
 class WeatherTexCard {
   constructor(el, canvas, cssW, cssH, sc, panels, texts = []) {
     const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, premultipliedAlpha: false, powerPreference: "low-power" });
@@ -469,7 +525,7 @@ class WeatherTexCard {
       const tex = gl.createTexture();
       gl.bindTexture(gl.TEXTURE_2D, tex);
       gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
-      const layer = { ...L, tex, aspect: 2, offset: Math.random(), ready: false };
+      const layer = { ...L, tex, aspect: 2, offset: FIXED_OFS == null ? Math.random() : (FIXED_OFS + 0.37 * this.layers.length) % 1, ready: false };
       this.layers.push(layer);
       loadImage(src).then((im) => {
         if (this.disposed) return;
@@ -520,6 +576,7 @@ class WeatherTexCard {
     gl.uniform1f(s("dark"), c.dark ?? 0);
     gl.uniform1f(s("rain"), c.rain ?? 0); gl.uniform1f(s("heavy"), c.heavy ?? 0); gl.uniform1f(s("snow"), c.snow ?? 0);
     gl.uniform1f(s("fog"), c.fog ?? 0); gl.uniform1f(s("wind"), c.wind ?? 1); gl.uniform3fv(s("fogCol"), labToRgb(sc.fogCol));
+    gl.uniform1f(s("v3"), OLD ? 0 : 1); gl.uniform1f(s("depth"), DEPTH); gl.uniform1f(s("ambSky"), AMB_SKY);
     this.applyLayers();
     gl.useProgram(this.pFinal.p);
     const f = this.pFinal.u;
@@ -531,6 +588,8 @@ class WeatherTexCard {
     const tflat = new Float32Array(16); this.texts.slice(0, 4).forEach((p, i) => tflat.set([p.x, p.y, p.w, p.h], i * 4));
     gl.uniform4fv(f("texts"), tflat); gl.uniform1i(f("nTexts"), Math.min(4, this.texts.length));
     gl.uniform1f(f("textLum"), TEXT_LUM); gl.uniform1f(f("panelLum"), PANEL_LUM);
+    gl.uniform1f(f("v3"), OLD ? 0 : 1); gl.uniform1f(f("pmip"), PANEL_MIP); gl.uniform1f(f("pcap"), PANEL_CAP); gl.uniform1f(f("frost"), FROST);
+    gl.uniform3fv(f("ptintCol"), rgb(sc.sky[0])); gl.uniform1f(f("ptint"), PANEL_TINT);
     gl.useProgram(this.pDrop.p);
     gl.uniform1i(this.pDrop.u("sky"), 0); gl.uniform2f(this.pDrop.u("css"), this.cssW, this.cssH);
   }
