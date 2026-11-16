@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>天气卡片云贴图样稿</title>
+<title>天气卡片样稿</title>
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -21,7 +21,6 @@ body {
 main { padding: 24px 20px 60px; }
 .stage { display: flex; flex-wrap: wrap; gap: 28px; align-items: flex-start; }
 .stat { font-size: 12px; color: #8793a3; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
-.src { font-size: 12px; color: #8793a3; margin: 4px 0 0; }
 h2 { font-size: 15px; font-weight: 500; color: #c9d2de; margin: 36px 0 12px; }
 .gallery { display: flex; flex-wrap: wrap; gap: 16px; }
 figure { margin: 0; }
@@ -39,9 +38,8 @@ body.bare { background: transparent; min-height: 0; }
 .bare .card.l, .bare .card.m { width: 100vw; }
 canvas.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
-.content { position: absolute; inset: 0; padding: 14px 16px; display: flex; flex-direction: column; text-shadow: 0 1px 2px rgba(0, 0, 0, .22); }
-/* 顶部文字压在亮云上：跟着字形走的柔和暗晕 */
-.city, .temp, .cond, .hilo { text-shadow: 0 1px 2px rgba(0, 0, 0, .28), 0 0 10px rgba(0, 0, 0, .3), 0 0 26px rgba(0, 0, 0, .22); }
+.content { position: absolute; inset: 0; padding: 14px 16px; display: flex; flex-direction: column; text-shadow: 0 1px 2px rgba(0, 0, 0, .18); }
+.city, .temp, .cond, .hilo { text-shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 0 12px rgba(0, 0, 0, .16); }
 .city { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 4px; }
 .city svg { width: 11px; height: 11px; }
 .temp { font-size: 46px; font-weight: 200; line-height: 1; letter-spacing: -1px; }
@@ -75,23 +73,23 @@ canvas.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: bl
   <h2 id="gal-title">全部天气（小卡片）</h2>
   <section class="gallery" id="gallery"></section>
 </main>
-<script src="tex2/manifest.js"></script>
 <script>
 "use strict";
 const params = new URLSearchParams(location.search);
+window.__ov = {};
+const num = (k, d) => (k in window.__ov ? window.__ov[k] : params.has(k) ? Number(params.get(k)) : d);
+// cov：云量；gray：天空偏灰的程度；dark：压暗；sun：太阳光露出多少
 const CONDITIONS = [
   { id: "clear", label: "晴", cov: 0, sun: 1 },
-  { id: "partly", label: "少云", cov: 0.42, sun: 1, wind: 1 },
-  { id: "cloudy", label: "多云", cov: 0.66, sun: 0.75, wind: 1.2 },
-  { id: "overcast", label: "阴", cov: 0.95, sun: 0.35, gray: 1, wind: 0.8 },
-  { id: "fog", label: "雾", cov: 0.8, sun: 0.45, gray: 0.9, fog: 1, wind: 0.4 },
-  { id: "drizzle", label: "小雨", cov: 0.92, sun: 0.3, gray: 0.85, rain: 0.4, dark: 0.3, wind: 1 },
-  { id: "rain", label: "大雨", cov: 1, sun: 0.18, gray: 1, rain: 1, heavy: 0.6, dark: 0.6, wind: 1.6 },
-  { id: "storm", label: "雷阵雨", cov: 1, sun: 0.12, gray: 1, rain: 0.9, heavy: 0.8, storm: 1, dark: 0.75, wind: 2 },
-  { id: "snow", label: "小雪", cov: 0.93, sun: 0.3, gray: 0.75, snow: 1, dark: 0.15, wind: 0.6 },
+  { id: "partly", label: "少云", cov: 0.4, sun: 1, wind: 1 },
+  { id: "cloudy", label: "多云", cov: 0.66, sun: 0.6, gray: 0.3, wind: 1.1 },
+  { id: "overcast", label: "阴", cov: 0.95, sun: 0, gray: 1, wind: 0.8 },
+  { id: "fog", label: "雾", cov: 0.8, sun: 0, gray: 0.9, fog: 1, wind: 0.4 },
+  { id: "drizzle", label: "小雨", cov: 0.95, sun: 0, gray: 1, rain: 0.35, dark: 0.45, wind: 1 },
+  { id: "rain", label: "大雨", cov: 1, sun: 0, gray: 1, rain: 1, heavy: 0.7, dark: 1, wind: 1.5 },
+  { id: "storm", label: "雷阵雨", cov: 1, sun: 0, gray: 1, rain: 1, heavy: 1, storm: 1, dark: 1.25, wind: 2 },
+  { id: "snow", label: "小雪", cov: 0.95, sun: 0, gray: 0.9, snow: 1, dark: 0.1, wind: 0.6 },
 ];
-CONDITIONS.forEach((c) => (c.cover = c.cov));
-const TUNE_SEED = Number(params.get("seed") || 0);
 const SIZES = [{ id: "s", label: "小 2×2" }, { id: "m", label: "中 4×2" }, { id: "l", label: "大 4×4" }];
 const FPS = [{ id: "30", label: "30" }, { id: "60", label: "60" }];
 const state = {
@@ -105,40 +103,17 @@ const state = {
 const SUNRISE = 6.45, SUNSET = 17.95, MOON_PHASE = 0.32;
 const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
 const condById = (id) => CONDITIONS.find((c) => c.id === id);
-// 云贴图（实拍照片抠掉蓝天后只留亮度与透明度，横向无缝平铺）；full 表示整幅云层（不透明，阴雨天用）
-// v=old：改之前的效果（旧贴图、旧配色、旧面板），并排对比用
-const OLD = params.get("v") === "old";
-// 新抠图只换了抠出来的三类（整幅的阴雨贴图没变）
-const RETOUCHED = ["field", "cumulus", "bank"];
-const TEX = Object.fromEntries(Object.entries(window.CLOUD_TEX || {}).map(([k, list]) => [k, list.map((s) => (OLD || !RETOUCHED.includes(k) ? s : s.replace("tex2/", "tex3/")))]));
 if (params.get("bare") === "1") document.body.classList.add("bare");
-// ofs：各层贴图的起始位置固定（对比页让改前改后的云在同一处）；不给就随机
-const FIXED_OFS = params.has("ofs") ? Number(params.get("ofs")) : null;
-// 每种天气的层（远到近）：贴图类别、贴图上下沿落在卡片的哪里（0 顶、1 底，可超出卡片）、横向缩放、速度（每秒移动贴图宽度的比例）、不透明度
-const LAYERS = {
-  clear: [],
-  partly: [
-    { kind: "field", top: 0.3, bottom: 0.8, scale: 1.0, speed: 0.003, alpha: 0.85 },
-    { kind: "cumulus", top: -0.2, bottom: 0.5, scale: 1.0, speed: 0.006, alpha: 1 },
-  ],
-  cloudy: [
-    { kind: "field", top: 0.05, bottom: 0.6, scale: 0.9, speed: 0.003, alpha: 0.9 },
-    { kind: "bank", top: 0.3, bottom: 1.04, scale: 1.0, speed: 0.004, alpha: 1 },
-    { kind: "cumulus", top: -0.3, bottom: 0.5, scale: 1.15, speed: 0.008, alpha: 1 },
-  ],
-  overcast: [{ kind: "overcast", full: true, top: -0.2, bottom: 1.2, speed: 0.003, alpha: 1 }],
-  fog: [{ kind: "overcast", full: true, top: -0.2, bottom: 1.2, speed: 0.002, alpha: 1 }],
-  drizzle: [{ kind: "overcast", full: true, top: -0.2, bottom: 1.2, speed: 0.004, alpha: 1 }],
-  rain: [{ kind: "dark", full: true, top: -0.2, bottom: 1.2, speed: 0.005, alpha: 1 }],
-  storm: [{ kind: "dark", full: true, top: -0.25, bottom: 1.25, speed: 0.007, alpha: 1 }],
-  snow: [{ kind: "overcast", full: true, top: -0.2, bottom: 1.2, speed: 0.003, alpha: 1 }],
-};
+// seed：云图案的起始位置固定（两次打开云在同一处）；不给就随机
+const SEED = params.has("seed") ? Number(params.get("seed")) : null;
+// freeze：云停在这一秒不动（截图对比用）
+const FREEZE = params.has("freeze") ? Number(params.get("freeze")) : null;
 </script>
 <script src="shared.js"></script>
 <script>
 "use strict";
 // ================= 卡片内容：顶部信息 + 磨砂面板 =================
-function contentHTML3(size, d, condLabel, condId) {
+function contentHTML3(size, d, condLabel) {
   const head = `<div class="city">${d.city}${ARROW}</div><div class="temp">${d.temp}°</div>`;
   const condLine = `<div class="cond">${condLabel}</div><div class="hilo">最高 ${d.hi}° 最低 ${d.lo}°</div>`;
   const hourCell = (h) => `<div class="hour"><span class="t">${h.label}</span>${icon(h.kind, h.night)}<span>${h.temp}°</span></div>`;
@@ -151,6 +126,58 @@ function contentHTML3(size, d, condLabel, condId) {
 <div class="panel" data-panel style="margin-top:8px;flex:1;display:flex;flex-direction:column;justify-content:center">${d.days.map(dayRow).join("")}</div>`;
 }
 
+// ================= 噪声贴图：整页只算一次，各卡片共用 =================
+// 四个通道都能无缝平铺：R 平滑起伏（云的大形）、G 鼓包（云边的一团团）、B 细的平滑起伏、A 细的鼓包（两者用来把云边啃碎）
+const NOISE_N = 256;
+function makeNoise(N) {
+  const im = Math.imul;
+  const h2 = (x, y, s) => { let h = im(x, 374761393) ^ im(y, 668265263) ^ im(s, 1274126177); h = im(h ^ (h >>> 13), 1274126177); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
+  const chan = [0, 1, 2, 3].map(() => new Float32Array(N * N));
+  function perlin(dst, basePer, octs, seed) {
+    let amp = 1;
+    for (let o = 0; o < octs; o++, amp *= 0.5) {
+      const per = basePer << o, gx = new Float32Array(per * per), gy = new Float32Array(per * per);
+      for (let i = 0; i < per * per; i++) { const a = h2(i % per, (i / per) | 0, seed + o * 13) * 6.2831853; gx[i] = Math.cos(a); gy[i] = Math.sin(a); }
+      const f = per / N;
+      for (let y = 0; y < N; y++) {
+        const py = (y + 0.5) * f, yi = Math.floor(py), yf = py - yi, v = yf * yf * yf * (yf * (yf * 6 - 15) + 10), y0 = (yi % per) * per, y1 = ((yi + 1) % per) * per;
+        for (let x = 0; x < N; x++) {
+          const px = (x + 0.5) * f, xi = Math.floor(px), xf = px - xi, u = xf * xf * xf * (xf * (xf * 6 - 15) + 10), x0 = xi % per, x1 = (xi + 1) % per;
+          const a = gx[y0 + x0] * xf + gy[y0 + x0] * yf, b = gx[y0 + x1] * (xf - 1) + gy[y0 + x1] * yf, c = gx[y1 + x0] * xf + gy[y1 + x0] * (yf - 1), d = gx[y1 + x1] * (xf - 1) + gy[y1 + x1] * (yf - 1);
+          dst[y * N + x] += amp * (a + (b - a) * u + (c + (d - c) * u - (a + (b - a) * u)) * v);
+        }
+      }
+    }
+  }
+  function worley(dst, basePer, octs, seed) {
+    let amp = 1;
+    for (let o = 0; o < octs; o++, amp *= 0.5) {
+      const per = basePer << o, fx = new Float32Array(per * per), fy = new Float32Array(per * per);
+      for (let i = 0; i < per * per; i++) { fx[i] = h2(i % per, (i / per) | 0, seed + o * 7); fy[i] = h2(i % per, (i / per) | 0, seed + o * 7 + 101); }
+      const f = per / N;
+      for (let y = 0; y < N; y++) {
+        const py = (y + 0.5) * f, yi = Math.floor(py);
+        for (let x = 0; x < N; x++) {
+          const px = (x + 0.5) * f, xi = Math.floor(px);
+          let m = 9;
+          for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+            const cx = xi + dx, cy = yi + dy, k = (((cy % per) + per) % per) * per + (((cx % per) + per) % per);
+            const ex = cx + fx[k] - px, ey = cy + fy[k] - py, dd = ex * ex + ey * ey;
+            if (dd < m) m = dd;
+          }
+          dst[y * N + x] += amp * (1 - Math.min(1, Math.sqrt(m) * 1.12));
+        }
+      }
+    }
+  }
+  perlin(chan[0], 4, 5, 11); worley(chan[1], 5, 3, 23); perlin(chan[2], 12, 3, 37); worley(chan[3], 12, 3, 53);
+  const out = new Uint8Array(N * N * 4);
+  chan.forEach((c, k) => { let lo = Infinity, hi = -Infinity; for (const v of c) { if (v < lo) lo = v; if (v > hi) hi = v; } for (let i = 0; i < N * N; i++) out[i * 4 + k] = Math.round(((c[i] - lo) / (hi - lo)) * 255); });
+  return out;
+}
+const noiseT0 = performance.now();
+const NOISE = makeNoise(NOISE_N);
+window.__noiseMs = performance.now() - noiseT0;
 
 // ================= 着色器 =================
 const VERT = `#version 300 es
@@ -158,41 +185,115 @@ in vec2 a; void main(){ gl_Position = vec4(a, 0.0, 1.0); }`;
 const HASH = `
 float hash12(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * 0.1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 vec2 hash22(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * vec3(0.1031, 0.1030, 0.0973)); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.xx + p3.yz) * p3.zy); }
-float remap(float v, float l0, float h0, float l1, float h1){ return l1 + (v - l0) * (h1 - l1) / (h0 - l0); }
 `;
-// 天空：实时渐变、太阳与月亮、星星；云贴图分层叠加（按太阳角度与时段重新打光，逆光时云边透亮，缓慢扰动显得有生气）；再叠雾、闪电、雨雪
+// 天空：渐变 + 画面外的太阳洒进来的光 + 星月 + 程序生成的云（按太阳方向打光）+ 雾 + 雪花
+// 画面当作抬头看天的相机：上边仰角高（云近、看着大），下边接近地平线（云远、小，融进雾霭）
 const SKY_FS = `#version 300 es
 precision highp float;
-uniform sampler2D u_l0, u_l1, u_l2, u_l3;
-uniform vec4 u_lp[4];   // 顶、底、缩放、不透明度
-uniform vec4 u_lq[4];   // 速度、是否整幅、贴图宽高比、起点偏移
-uniform int u_nl;
-uniform vec2 u_res; uniform float u_dpr; uniform float u_time; uniform float u_aspect;
-uniform vec3 u_top, u_mid, u_bot, u_sunCore, u_glow;
-uniform vec2 u_sun, u_moon; uniform float u_sunVis, u_moonVis, u_moonPhase, u_stars;
-uniform vec3 u_litCol, u_shadeCol;
-uniform float u_back;   // 逆光强度：太阳在云后方附近时，云体变暗、薄处透亮
-uniform float u_dark, u_rain, u_heavy, u_snow, u_fog, u_wind, u_flash; uniform vec3 u_fogCol;
-uniform float u_v3, u_depth, u_ambSky;   // 新配色开关、云暗部保留多少（1 = 照片原样）、背阴面染多少天空色
+uniform sampler2D u_noise;
+uniform vec2 u_res; uniform float u_time, u_aspect, u_px;   // u_px：这张贴图一个像素合多少 CSS 像素
+uniform vec3 u_top, u_mid, u_bot;                           // 天空三段色（sRGB）
+uniform vec3 u_cam; uniform float u_dth;                     // 相机：sin 俯仰、cos 俯仰、焦距；一个像素的张角
+uniform vec2 u_sun; uniform vec3 u_sunCol; uniform float u_glowK, u_halo, u_gs;   // 太阳锚点（x 以卡片高为单位，y 0 顶 1 底，可在画面外）
+uniform vec3 u_lit, u_amb; uniform float u_hazeK, u_fwdK;   // 云的受光色、环境光色（线性）；远处融进天色的快慢；朝太阳一侧薄云透亮的强度
+uniform vec4 u_LA[3], u_LB[3], u_LC[3], u_LD[3]; uniform int u_nl;
+uniform vec2 u_wind; uniform float u_seed, u_jit, u_vig, u_bump;
+uniform float u_stars; uniform vec3 u_moon; uniform float u_moonPhase;
+uniform float u_fog; uniform vec3 u_fogCol;
+uniform float u_flash; uniform vec2 u_flashAt;
+uniform float u_snow, u_snowWind;
 out vec4 o;
 ${HASH}
-float vn(vec2 p){ vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f);
-  return mix(mix(hash12(i), hash12(i + vec2(1,0)), u.x), mix(hash12(i + vec2(0,1)), hash12(i + vec2(1,1)), u.x), u.y); }
-float fbm2(vec2 p){ float s = 0.0, a = 0.5; mat2 m = mat2(1.6, 1.2, -1.2, 1.6); for (int i = 0; i < 5; i++){ s += a * vn(p); p = m * p; a *= 0.5; } return s; }
-// 贴图：亮度在 r、透明度在 a（整幅云层 a 恒为 1）；bias 取更粗的多级纹理层，相当于模糊
-vec4 layerTex(int i, vec2 uv, float bias){ if (i == 0) return texture(u_l0, uv, bias); if (i == 1) return texture(u_l1, uv, bias); if (i == 2) return texture(u_l2, uv, bias); return texture(u_l3, uv, bias); }
-float rainLayer(vec2 g, float cell, float len, float speed, float dens, float seed){
-  vec2 s = vec2(g.x / cell, g.y / (cell * len) + u_time * speed);
-  vec2 id = floor(s); vec2 f = fract(s);
-  float on = step(1.0 - dens, hash12(id + seed));
-  float xo = 0.25 + 0.5 * hash12(id + seed + 4.1);
-  float y = fract(f.y + hash12(id + seed + 2.7));
-  float line = smoothstep(0.9 / cell, 0.15 / cell, abs(f.x - xo));
-  return on * line * smoothstep(0.0, 0.25, y) * (1.0 - smoothstep(0.25, 0.32, y));
+const mat2 R1 = mat2(0.8, -0.6, 0.6, 0.8);
+const mat2 R2 = mat2(0.28, -0.96, 0.96, 0.28);
+vec3 rayDir(vec2 q){
+  vec3 dc = normalize(vec3((q.x - 0.5 * u_aspect) * 2.0, (0.5 - q.y) * 2.0, u_cam.z));
+  return vec3(dc.x, dc.y * u_cam.y + dc.z * u_cam.x, -dc.y * u_cam.x + dc.z * u_cam.y);
+}
+// 噪声贴图按算好的层级取样（在分支和循环里取样时不能靠自动推算层级）
+float shapeAt(vec2 p, float billow, float lod){ vec4 n = textureLod(u_noise, p, lod); return n.r - (0.5 - n.g) * billow * 0.7; }
+float amountAt(vec2 p, float th, float soft, float billow, float lod){ return clamp((shapeAt(p, billow, lod) - th) / soft, 0.0, 1.0); }
+// 太阳洒进画面的光随距离的衰减（天空和云共用）
+float sunGlow(float r){ return 0.95 * exp(-r * r * 24.0) + 0.4 * exp(-r * 3.6); }
+// 立体云里某一处的浓度：m 是这一处云的"量"（0～1），h 是在云层里的高度（0 底 1 顶）。平底、圆顶，顶上是毛边
+float rhoAt(float m, float h){
+  float top = pow(m, 0.62), bot = 0.16 * (1.0 - m);
+  return smoothstep(0.0, 0.34, top - h) * smoothstep(-0.02, 0.12, h - bot);
+}
+// 一层云：返回预乘颜色与不透明度。D.w > 0 是有厚度的立体云（沿视线穿过云层取几个点）；否则是一层薄云
+vec4 cloudLayer(int i, vec3 rd, vec2 q, vec3 sd, vec3 sky){
+  vec4 A = u_LA[i], B = u_LB[i], C = u_LC[i], D = u_LD[i];
+  float ry = max(rd.y, 0.04);
+  vec2 P = rd.xz / ry;                                      // 视线落在云底所在平面（高度 1）的哪里
+  float dist = 1.0 / ry;
+  vec2 st = vec2(A.x / B.x, A.x);                           // 沿风向（x）拉长
+  vec2 mv = u_wind * u_time * B.w;
+  vec2 off = u_seed * vec2(3.1, 1.7) + float(i) * 0.37 - mv;
+  float lod = max(log2(u_dth * 256.0 * dist * A.x / sqrt(ry)), 0.0);
+  vec2 p = P * st + off;
+  float big = textureLod(u_noise, R1 * p * 0.19 + mv * 0.05 + 0.31, max(lod - 2.4, 0.0)).r;
+  vec2 wv = (textureLod(u_noise, R2 * p * 0.37 + mv * 0.1 + 0.77, max(lod - 1.4, 0.0)).gb - 0.5) * B.y;
+  float fade = smoothstep(C.z, C.w, q.y);                   // 画面往下云量收敛
+  float th = A.y + (0.5 - big) * 0.24 + fade * D.x;
+  float sr = length(q - u_sun) * u_gs;
+  float glow = u_glowK * u_fwdK * sunGlow(sr);
+  float hz = 1.0 - exp(-max(dist - 1.3, 0.0) * u_hazeK);    // 越远越融进天色
+  vec3 fl = vec3(0.62, 0.7, 1.0) * u_flash * exp(-dot(q - u_flashAt, q - u_flashAt) * 2.2);
+  // 细节：把云边扯出毛絮（先扭一下取样位置），再啃掉一些；另取一点算朝太阳方向的起伏，给云体一点凹凸的明暗
+  vec2 Ps = sd.xz / max(sd.y, 0.04);
+  vec2 l2 = normalize(Ps - P + 1e-5) * st;
+  vec2 dq = R2 * p * D.y - mv * 0.14;
+  float dlod = lod + log2(D.y) - 0.3;
+  vec4 dn = textureLod(u_noise, dq, dlod);
+  wv += (dn.ba - 0.5) * D.z * B.z / D.y;
+  float ero = (dn.b * 0.55 + dn.a * 0.45) * B.z;
+  float bump = (dn.a - textureLod(u_noise, dq + R2 * l2 * 0.03 * D.y / A.x, dlod).a) * u_bump;
+  if (D.w > 0.0) {
+    float Hc = D.w;
+    const int N = 14;
+    float jit = 0.5 + u_jit * (fract(52.9829189 * fract(dot(gl_FragCoord.xy, vec2(0.06711056, 0.00583715)))) - 0.5);
+    float T = 1.0; vec3 acc = vec3(0.0);
+    float dsK = A.w * 30.0 * Hc / (float(N) * max(rd.y, 0.2));
+    for (int k = 0; k < N; k++) {
+      float h = (float(k) + jit) / float(N);
+      vec2 pp = P * (1.0 + Hc * h) * st + off + wv;
+      float m = amountAt(pp, th, A.z, C.x, lod);
+      float rho = rhoAt(m, h);
+      if (rho > 0.002) {
+        rho = clamp(rho - ero * (1.0 - 0.8 * rho), 0.0, 1.0);
+        // 朝太阳方向取两点，估计阳光到这里之前被云挡了多少
+        float s1 = 0.3 * Hc, s2 = 0.85 * Hc;
+        float o1 = rhoAt(amountAt(pp + sd.xz * s1 * st, th, A.z, C.x, lod), h + sd.y * s1 / Hc) * step(h + sd.y * s1 / Hc, 1.0);
+        float o2 = rhoAt(amountAt(pp + sd.xz * s2 * st, th, A.z, C.x, lod + 0.7), h + sd.y * s2 / Hc) * step(h + sd.y * s2 / Hc, 1.0);
+        float tau = (o1 * 0.45 + o2 * 0.55 + rho * 0.25) * C.y;
+        float direct = (0.7 * exp(-tau * 2.6) + 0.3 * exp(-tau * 0.55)) * clamp(1.0 + bump, 0.55, 1.5);   // 第二项：云里多次散射后仍透出的柔光
+        vec3 S = u_lit * direct + u_amb * (0.8 + 0.2 * h) + fl * (0.3 + 0.7 * rho);
+        float dT = exp(-rho * dsK);
+        acc += T * (1.0 - dT) * S; T *= dT;
+        if (T < 0.02) break;
+      }
+    }
+    float a = 1.0 - T;
+    acc += u_sunCol * glow * a * (0.2 + 1.5 * T);           // 太阳那一侧：薄处透亮，厚处不透
+    float k = 1.0 - hz * 0.55;
+    acc = mix(acc, sky * a, hz * 0.8) * k;
+    return vec4(acc, a * k);
+  }
+  float d = amountAt(p + wv, th, A.z, C.x, lod);
+  d = clamp((d - ero * (1.0 - 0.6 * d)) / (1.0 - ero * 0.9), 0.0, 1.0);   // 细节把云边啃碎，云心少啃
+  d = d * d * (3.0 - 2.0 * d);
+  float occ = amountAt(p + wv + l2 * 0.03, th, A.z, C.x, lod) * 0.55 + amountAt(p + wv + l2 * 0.09, th, A.z, C.x, lod + 0.5) * 0.45;
+  float tau = occ * C.y;
+  float direct = (0.72 * exp(-tau * 2.4) + 0.28 * exp(-tau * 0.6)) * mix(0.8, 1.0, d);
+  float a = A.w * d;
+  vec3 c = u_lit * direct + u_amb * (1.0 - 0.12 * d) + fl * (0.3 + 0.7 * d);
+  c += u_sunCol * glow * (1.15 - 0.85 * d);
+  c = mix(c, sky, hz * 0.8); a *= 1.0 - hz * 0.55;
+  return vec4(c * a, a);
 }
 float flake(vec2 g, float cell, float speed, float r, float soft, float seed){
   float yy = g.y + u_time * speed;
-  vec2 p = vec2(g.x + sin(u_time * 0.7 + yy / cell * 1.9 + seed) * cell * 0.18 - u_time * speed * 0.2 * u_wind, yy) / cell;
+  vec2 p = vec2(g.x + sin(u_time * 0.7 + yy / cell * 1.9 + seed) * cell * 0.18 - u_time * speed * 0.2 * u_snowWind, yy) / cell;
   vec2 id = floor(p); vec2 f = fract(p) - 0.5;
   vec2 off = (hash22(id + seed) - 0.5) * 0.7;
   float rr = r * (0.6 + 0.7 * hash12(id + seed * 4.4));
@@ -201,166 +302,111 @@ float flake(vec2 g, float cell, float speed, float r, float soft, float seed){
 void main(){
   vec2 frag = gl_FragCoord.xy;
   vec2 uv = frag / u_res;
-  vec2 g = frag / u_dpr;
-  float y = 1.0 - uv.y;
-  vec2 q = vec2(uv.x * u_aspect, y);
-  vec3 col = y < 0.55 ? mix(u_top, u_mid, y / 0.55) : mix(u_mid, u_bot, (y - 0.55) / 0.45);
-  vec3 skyBase = col;   // 这里的天空色（不含太阳光晕），用来给云的背阴面染色
-  vec2 sp = vec2(u_sun.x * u_aspect, u_sun.y);
-  float ds = length(q - sp);
-  col += u_glow * u_sunVis * (0.4 * exp(-ds * 3.2) + 0.55 * exp(-ds * ds * 70.0));
-  col = mix(col, u_sunCore * 1.15, smoothstep(0.032, 0.026, ds) * u_sunVis);
-  if (u_stars > 0.0) {
-    vec2 sg = g / 3.0; vec2 id = floor(sg); float h = hash12(id);
-    if (h > 0.985) { vec2 off = hash22(id) - 0.5; float d = length(fract(sg) - 0.5 - off * 0.5) * 3.0; col += vec3(0.9, 0.94, 1.0) * smoothstep(1.1, 0.0, d) * (0.4 + 0.6 * hash12(id + 2.0)) * (0.6 + 0.4 * sin(u_time * (1.0 + 2.5 * hash12(id + 1.0)) + h * 50.0)) * u_stars * smoothstep(0.95, 0.4, y); }
+  vec2 g = vec2(frag.x, u_res.y - frag.y) * u_px;          // CSS 像素，y 向下
+  vec2 q = vec2(uv.x * u_aspect, 1.0 - uv.y);
+  float y = q.y;
+  // 天空：三段色平滑过渡（没有折线的拐点）
+  vec3 gs = mix(mix(u_top, u_mid, y), mix(u_mid, u_bot, y), y);
+  vec3 col = pow(gs, vec3(2.2));
+  vec3 sky = col;
+  vec3 rd = rayDir(q), sd = rayDir(u_sun);
+  // 太阳在画面外：只有洒进来的光（中心一团、外面一大片柔光），没有圆盘
+  float r = length(q - u_sun) * u_gs;
+  col += u_sunCol * u_glowK * (sunGlow(r) + 0.09 * exp(-r * 1.25));
+  if (u_halo > 0.0) {                                        // 淡淡的日晕：内圈偏暖、外圈偏冷
+    float hr = (r - 0.36) / 0.02;
+    col += u_sunCol * u_halo * (vec3(1.0, 0.86, 0.72) * exp(-(hr + 0.45) * (hr + 0.45)) + vec3(0.72, 0.86, 1.0) * exp(-(hr - 0.45) * (hr - 0.45))) * smoothstep(1.3, 0.2, r);
   }
-  if (u_moonVis > 0.0) {
+  if (u_stars > 0.0) {
+    vec2 sg = g / 2.6; vec2 id = floor(sg); float h = hash12(id);
+    if (h > 0.982) { vec2 off = hash22(id) - 0.5; float d = length(fract(sg) - 0.5 - off * 0.6) * 2.6; col += vec3(0.86, 0.9, 1.0) * smoothstep(1.0, 0.0, d) * (0.25 + 0.75 * hash12(id + 2.0)) * (0.7 + 0.3 * sin(u_time * (0.8 + 2.0 * hash12(id + 1.0)) + h * 50.0)) * u_stars * smoothstep(0.95, 0.3, y); }
+  }
+  if (u_moon.z > 0.0) {
     vec2 mp = vec2(u_moon.x * u_aspect, u_moon.y);
-    vec2 md = (q - mp) / 0.042; float r2 = dot(md, md);
+    vec2 md = (q - mp) / 0.04; float r2 = dot(md, md);
     if (r2 < 1.0) {
       vec3 nrm = vec3(md.x, -md.y, sqrt(1.0 - r2));
       float a = u_moonPhase * 6.28318;
-      float lit = smoothstep(-0.04, 0.12, dot(nrm, normalize(vec3(sin(a), 0.15, -cos(a)))));
-      float tex = 0.85 + 0.2 * fbm2(md * 3.0 + 4.0) - 0.2 * smoothstep(0.5, 0.7, fbm2(md * 1.6 + 9.0));
-      col = mix(col, vec3(0.96, 0.95, 0.9) * tex * lit + vec3(0.04, 0.05, 0.07), smoothstep(1.0, 0.94, r2) * u_moonVis);
+      float lit = smoothstep(-0.05, 0.14, dot(nrm, normalize(vec3(sin(a), 0.15, -cos(a)))));
+      col = mix(col, vec3(0.78, 0.8, 0.84) * (0.9 + 0.1 * texture(u_noise, md * 0.11 + 0.4).r) * lit + sky * 0.7, smoothstep(1.0, 0.9, r2) * u_moon.z);
     }
-    col += vec3(0.5, 0.56, 0.68) * u_moonVis * 0.2 * exp(-length(q - mp) * 9.0);
+    col += vec3(0.4, 0.46, 0.6) * u_moon.z * 0.1 * exp(-length(q - mp) * 8.0);
   }
-  for (int i = 0; i < 4; i++) {
+  float trans = 1.0;
+  for (int i = 0; i < 3; i++) {
     if (i >= u_nl) break;
-    vec4 lp = u_lp[i], lq = u_lq[i];
-    bool full = lq.y > 0.5;
-    float band = lp.y - lp.x;
-    float v = (y - lp.x) / band;
-    if (!full && (v < 0.0 || v > 1.0)) continue;
-    float u = (uv.x * u_aspect / (band * lq.z)) / lp.z + u_time * lq.x + lq.w;
-    vec2 tuv = vec2(u, clamp(v, 0.0, 1.0));
-    // 极轻微的形变：云在慢慢变，但不能像液体一样流动
-    tuv += (vec2(vn(tuv * vec2(3.0, 2.0) + u_time * 0.015), vn(tuv * vec2(3.0, 2.0) + vec2(7.0, 1.0) - u_time * 0.012)) - 0.5) * 0.0015;
-    vec4 c = layerTex(i, tuv, 0.0);
-    float thick = full ? 1.0 : layerTex(i, tuv, 3.0).a;   // 附近一圈的云量，当作厚度
-    float a = c.a * lp.w * (full ? 1.0 : smoothstep(0.0, 0.06, v) * smoothstep(1.0, 0.92, v));
-    float lum = c.r;
-    vec3 front;
-    if (u_v3 > 0.5 && !full) {
-      // 照片是对着很深的蓝天拍的，云的暗部放到我们更亮的天上显得灰脏：整体提亮、保留明暗层次。
-      // 背阴面受天光照，按这里的天空色染（白天偏蓝）；中性灰挨着饱和的蓝天会被看成发黄发褐，就是"油腻"的来源之一
-      float L = 1.0 - (1.0 - lum) * u_depth;
-      vec3 skyN = skyBase / max(max(skyBase.r, skyBase.g), max(skyBase.b, 1e-3));
-      vec3 shade = dot(u_shadeCol, vec3(0.2126, 0.7152, 0.0722)) * mix(vec3(1.0), skyN, u_ambSky);
-      front = L * mix(shade, u_litCol, smoothstep(0.35, 1.0, lum));
-    } else {
-      // 旧：照片的明暗原样保留，只换光的颜色：亮处主要受阳光，暗处主要受天光
-      front = lum * mix(u_shadeCol, u_litCol, smoothstep(0.35, 1.0, lum));
-    }
-    // 逆光：离太阳越近越明显；云体略压暗，薄处透出太阳的颜色
-    vec2 cq = vec2(uv.x * u_aspect, y);
-    float back = u_back * exp(-length(cq - sp) * 3.5);     // 只有太阳正后方附近的云才明显逆光
-    float tr = c.a * (1.0 - thick);
-    vec3 cc = front * (1.0 - 0.25 * back) + u_glow * tr * 1.2 * back;
-    cc += vec3(0.75, 0.8, 1.0) * u_flash * 0.9 * c.a;
-    col = mix(col, cc, a);
+    vec4 c = cloudLayer(i, rd, q, sd, sky);
+    col = col * (1.0 - c.a) + c.rgb; trans *= 1.0 - c.a;
   }
-  if (u_fog > 0.0) {
-    float f1 = fbm2(vec2(g.x / 160.0 + u_time * 0.02, g.y / 40.0));
-    float f2 = fbm2(vec2(g.x / 90.0 - u_time * 0.015, g.y / 26.0 + 3.0));
-    float fd = smoothstep(0.3, 0.75, f1 * 0.6 + f2 * 0.4) * mix(0.4, 1.0, y);
-    col = mix(col, u_fogCol, clamp(0.25 + fd * 0.6, 0.0, 1.0) * u_fog);
-  }
-  col += vec3(0.55, 0.6, 0.75) * u_flash * (0.3 - 0.15 * y);
-  if (u_rain > 0.0) {
-    vec2 rg = g; rg.x += rg.y * mix(0.04, 0.12, u_heavy) * u_wind;
-    float r = rainLayer(rg, 5.0, 3.4, 1.9 + u_heavy, 0.10 + 0.22 * u_rain, 1.0) * 0.18
-            + rainLayer(rg + 17.0, 9.0, 3.8, 2.6 + 1.5 * u_heavy, 0.08 + 0.2 * u_rain, 2.0) * 0.28
-            + rainLayer(rg + 41.0, 16.0, 4.2, 3.4 + 2.0 * u_heavy, 0.05 + 0.14 * u_rain, 3.0) * 0.38;
-    col = mix(col, vec3(0.85, 0.9, 1.0), clamp(r, 0.0, 1.0));
+  col *= 1.0 - u_vig * (1.0 - exp(-r * 1.5));
+  col += vec3(0.5, 0.56, 0.75) * u_flash * 0.12 * (1.2 - y);
+  if (u_fog > 0.0) {                                         // 雾：一层慢慢飘的薄纱，越往下越浓
+    float f1 = texture(u_noise, vec2(q.x * 0.11 - u_time * 0.004, y * 0.34 + u_time * 0.001)).r;
+    float f2 = texture(u_noise, vec2(q.x * 0.23 + u_time * 0.006, y * 0.7 + 0.4)).b;
+    float fd = smoothstep(0.25, 0.8, f1 * 0.65 + f2 * 0.35);
+    col = mix(col, u_fogCol, clamp(0.35 + fd * 0.4 + 0.25 * y, 0.0, 1.0) * u_fog);
   }
   if (u_snow > 0.0) {
-    float s = flake(g, 15.0, 18.0, 1.0, 0.4, 1.0) * 0.7 + flake(g, 28.0, 30.0, 1.7, 0.5, 2.0) * 0.85 + flake(g, 60.0, 52.0, 3.6, 0.8, 3.0) * 0.6 + flake(g, 120.0, 85.0, 7.5, 0.95, 4.0) * 0.35;
-    col = mix(col, vec3(1.0), clamp(s, 0.0, 1.0) * u_snow);
+    float s = flake(g, 15.0, 18.0, 1.0, 0.4, 1.0) * 0.6 + flake(g, 28.0, 30.0, 1.7, 0.5, 2.0) * 0.8 + flake(g, 60.0, 52.0, 3.4, 0.8, 3.0) * 0.5 + flake(g, 120.0, 85.0, 7.0, 0.95, 4.0) * 0.28;
+    col = mix(col, vec3(0.92, 0.95, 1.0), clamp(s, 0.0, 1.0) * u_snow);
   }
-  o = vec4(col, 1.0);
+  // 高光柔和收尾（太阳光最亮处不会一下子顶到纯白），再转成屏幕用的编码
+  col = mix(col, 0.62 + 0.38 * (1.0 - exp(-(col - 0.62) / 0.38)), step(0.62, col));
+  col = pow(max(col, 0.0), vec3(1.0 / 2.2));
+  col += (hash12(frag + 17.0) - 0.5) / 255.0;
+  o = vec4(col, trans);
 }`;
-// 最终合成：天空贴图 + 磨砂面板（取模糊层级 + 着色 + 描边）+ 面板上沿与卡片底边的积雪（高度图）
+// 最终合成：天空贴图 + 磨砂面板 + 面板上沿与卡片底边的积雪
 const FINAL_FS = `#version 300 es
 precision highp float;
 uniform sampler2D u_sky; uniform sampler2D u_snowH;
-uniform vec2 u_res; uniform float u_dpr; uniform float u_time;
+uniform vec2 u_res; uniform float u_dpr, u_time, u_lod;     // u_lod：天空贴图比屏幕粗多少级（取模糊层级时扣掉）
 uniform vec4 u_panels[3]; uniform int u_nPanels; uniform float u_rows;
-uniform vec4 u_texts[4]; uniform int u_nTexts;       // 顶部文字块（CSS 像素）
-uniform float u_textLum, u_panelLum;                 // 文字背后、面板底色允许的最高相对亮度
-uniform float u_v3, u_pmip, u_pcap;                  // 新面板开关、按多大一片的平均亮度压暗（多级纹理层级）、个别亮点的软上限
+uniform float u_panelLum, u_pmip, u_pcap, u_frost, u_ptint; uniform vec3 u_ptintCol;
 uniform float u_snowAmt;
 out vec4 o;
 ${HASH}
 float sdRound(vec2 p, vec2 c, vec2 hs, float r){ vec2 q = abs(p - c) - hs + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
 float snowAt(int row, float xNorm){ return texture(u_snowH, vec2(xNorm, (float(row) + 0.5) / u_rows)).r * 12.0; }
 float relLum(vec3 c){ return dot(pow(max(c, 0.0), vec3(2.2)), vec3(0.2126, 0.7152, 0.0722)); }
-// 把颜色压暗到相对亮度不超过 lim（只压亮的地方，蓝天、夜空不动）
-float capTo(vec3 c, float lim){ return pow(min(1.0, lim / max(relLum(c), 1e-4)), 1.0 / 2.2); }
-uniform float u_frost;   // 新面板的模糊半径（CSS 像素）
-uniform vec3 u_ptintCol; uniform float u_ptint;   // 新面板的玻璃色（压暗的天顶色）与染色比例：压暗的暖色不再发棕
-// 大半径磨砂：在中间层级的多级纹理上按两圈取样再平均，比直接取很粗的层级平滑（粗层级放大后会出现方块）
+vec3 skyLod(vec2 uv, float lod){ return textureLod(u_sky, uv, max(lod - u_lod, 0.0)).rgb; }
+// 大半径磨砂：在中间层级上按两圈取样再平均
 vec3 frost(vec2 uv){
   vec2 px = u_dpr / u_res;
-  vec3 s = textureLod(u_sky, uv, 4.0).rgb * 2.0;
+  vec3 s = skyLod(uv, 4.0) * 2.0;
   for (int i = 0; i < 8; i++) {
     float a = float(i) * 0.7853982;
-    s += textureLod(u_sky, uv + vec2(cos(a + 0.39), sin(a + 0.39)) * u_frost * 0.5 * px, 4.2).rgb * 1.5;
-    s += textureLod(u_sky, uv + vec2(cos(a), sin(a)) * u_frost * px, 4.6).rgb;
+    s += skyLod(uv + vec2(cos(a + 0.39), sin(a + 0.39)) * u_frost * 0.5 * px, 4.2) * 1.5;
+    s += skyLod(uv + vec2(cos(a), sin(a)) * u_frost * px, 4.6);
   }
   return s / 22.0;
 }
 void main(){
   vec2 frag = gl_FragCoord.xy;
   vec2 uv = frag / u_res;
-  vec2 g = vec2(frag.x, u_res.y - frag.y) / u_dpr;     // CSS 像素，y 向下（与 DOM 一致）
+  vec2 g = vec2(frag.x, u_res.y - frag.y) / u_dpr;         // CSS 像素，y 向下（与 DOM 一致）
   vec2 css = u_res / u_dpr;
   vec3 col = texture(u_sky, uv).rgb;
-  // 顶部文字背后：按附近的亮度柔和压暗，白字在亮云上也看得清
-  float tm = 0.0;
-  for (int i = 0; i < 4; i++) {
-    if (i >= u_nTexts) break;
-    vec4 r = u_texts[i];
-    tm = max(tm, smoothstep(40.0, -6.0, sdRound(g, r.xy + r.zw * 0.5, r.zw * 0.5, min(r.w, r.z) * 0.5)));
-  }
-  if (tm > 0.0 && u_textLum < 0.99) col *= mix(1.0, capTo(textureLod(u_sky, uv, 4.5).rgb, u_textLum), tm);
   for (int i = 0; i < 3; i++) {
     if (i >= u_nPanels) break;
-    vec4 r = u_panels[i];                                 // x, y, w, h（CSS 像素）
+    vec4 r = u_panels[i];
     float d = sdRound(g, r.xy + r.zw * 0.5, r.zw * 0.5, 14.0);
     if (d < 0.0) {
-      // 磨砂玻璃：取模糊层级，亮部按亮度平滑压缩到上限以内（暗处几乎不变）。
-      // 明暗顺序和色相都不变：玻璃后面的白云仍是比蓝天亮的柔影，不会变成灰斑
-      vec3 b = (u_v3 > 0.5 ? frost(uv) : textureLod(u_sky, uv, 4.2).rgb) * 0.92;
-      if (u_v3 > 0.5) {
-        // 新：像有色玻璃，按周围一大片的平均亮度整体压暗，玻璃后的白云仍比旁边的蓝天亮；
-        // 旧做法逐像素把亮处压到上限，白云被压得和蓝天一样亮，成了褐灰色的团
-        float Lw = relLum(textureLod(u_sky, uv, u_pmip).rgb * 0.92);
-        b *= pow(min(1.0, u_panelLum / max(Lw, 1e-4)), 1.0 / 2.2);
-        float Lb = relLum(b);
-        if (Lb > u_panelLum) {   // 超出的个别亮处再软压到 u_pcap 以内
-          float Lo = u_panelLum + (u_pcap - u_panelLum) * (1.0 - exp(-(Lb - u_panelLum) / (u_pcap - u_panelLum)));
-          b *= pow(Lo / Lb, 1.0 / 2.2);
-        }
-        // 玻璃带一点天顶的颜色（按亮度换算，不改明暗）：黄昏压暗的桃色云影偏向蓝紫，不发棕
-        b = mix(b, u_ptintCol * (relLum(b) > 0.0 ? pow(relLum(b) / max(relLum(u_ptintCol), 1e-4), 1.0 / 2.2) : 0.0), u_ptint);
-      } else {
-        float Lb = relLum(b);
-        float Lo = u_panelLum * (1.0 - exp(-Lb / u_panelLum));
-        b *= pow(Lo / max(Lb, 1e-5), 1.0 / 2.2);
-      }
+      // 有色磨砂玻璃：按周围一大片的平均亮度整体压暗（玻璃后的明暗关系不变），再带一点天顶的颜色
+      vec3 b = frost(uv) * 0.94;
+      float Lw = relLum(skyLod(uv, u_pmip) * 0.94);
+      b *= pow(min(1.0, u_panelLum / max(Lw, 1e-4)), 1.0 / 2.2);
+      float Lb = relLum(b);
+      if (Lb > u_panelLum) { float Lo = u_panelLum + (u_pcap - u_panelLum) * (1.0 - exp(-(Lb - u_panelLum) / (u_pcap - u_panelLum))); b *= pow(Lo / Lb, 1.0 / 2.2); }
+      b = mix(b, u_ptintCol * (relLum(b) > 0.0 ? pow(relLum(b) / max(relLum(u_ptintCol), 1e-4), 1.0 / 2.2) : 0.0), u_ptint);
       col = mix(col, b, smoothstep(0.0, -1.0, d));
-      col += vec3(1.0) * 0.08 * smoothstep(-1.4, -0.4, d);   // 内描边
+      col += vec3(1.0) * 0.07 * smoothstep(-1.4, -0.4, d);   // 内描边
     }
-    // 面板上沿的积雪
-    if (u_snowAmt > 0.0) {
+    if (u_snowAmt > 0.0) {                                  // 面板上沿的积雪
       float xn = (g.x - r.x) / r.z;
       if (xn > 0.0 && xn < 1.0) {
-        float h = snowAt(i, xn);
-        float above = r.y - g.y;                            // 在上沿之上多高
-        float edge = smoothstep(0.0, 6.0, min(g.x - r.x, r.x + r.z - g.x));
-        h *= edge;
+        float h = snowAt(i, xn) * smoothstep(0.0, 6.0, min(g.x - r.x, r.x + r.z - g.x));
+        float above = r.y - g.y;
         if (above > -2.0 && above < h) {
           float sh = 0.82 + 0.18 * smoothstep(0.0, h, above) + 0.06 * (hash12(floor(g * 1.5)) - 0.5);
           col = mix(col, vec3(0.97, 0.98, 1.0) * sh, smoothstep(h, h - 1.2, above) * smoothstep(-2.0, 0.0, above));
@@ -368,8 +414,7 @@ void main(){
       }
     }
   }
-  // 卡片底边的积雪
-  if (u_snowAmt > 0.0) {
+  if (u_snowAmt > 0.0) {                                    // 卡片底边的积雪
     float h = snowAt(3, g.x / css.x) * 1.6;
     float fromBottom = css.y - g.y;
     if (fromBottom < h) {
@@ -381,8 +426,36 @@ void main(){
   o = vec4(col, 1.0);
 }`;
 
+// 雨丝与水花：每条一段带圆头的线（实例化绘制），画在面板之外（雨在面板后面，面板挡住它）
+const LINE_VS = `#version 300 es
+in vec2 a; in vec4 i_seg; in vec2 i_wa;      // 线段两端（CSS 像素，y 向下）；线宽、不透明度
+uniform vec2 u_css;
+out vec2 v_p; out vec4 v_seg; out vec2 v_wa;
+void main(){
+  vec2 t = i_seg.zw - i_seg.xy; float len = length(t); vec2 dir = len > 1e-3 ? t / len : vec2(0.0, 1.0); vec2 nrm = vec2(-dir.y, dir.x);
+  float pad = i_wa.x * 0.5 + 1.0;
+  vec2 p = mix(i_seg.xy - dir * pad, i_seg.zw + dir * pad, a.y * 0.5 + 0.5) + nrm * a.x * pad;
+  v_p = p; v_seg = i_seg; v_wa = i_wa;
+  gl_Position = vec4(p.x / u_css.x * 2.0 - 1.0, 1.0 - p.y / u_css.y * 2.0, 0.0, 1.0);
+}`;
+const LINE_FS = `#version 300 es
+precision highp float;
+uniform vec4 u_panels[3]; uniform int u_nPanels; uniform vec3 u_col;
+in vec2 v_p; in vec4 v_seg; in vec2 v_wa;
+out vec4 o;
+float sdRound(vec2 p, vec2 c, vec2 hs, float r){ vec2 q = abs(p - c) - hs + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
+void main(){
+  vec2 pa = v_p - v_seg.xy, ba = v_seg.zw - v_seg.xy;
+  float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0);
+  float d = length(pa - ba * h);
+  float al = v_wa.y * smoothstep(v_wa.x * 0.5 + 0.35, v_wa.x * 0.5 - 0.35, d) * mix(0.25, 1.0, h);   // 头亮尾淡
+  for (int i = 0; i < 3; i++) { if (i >= u_nPanels) break; vec4 r = u_panels[i]; al *= smoothstep(-0.6, 0.4, sdRound(v_p, r.xy + r.zw * 0.5, r.zw * 0.5, 14.0)); }
+  if (al < 0.003) discard;
+  o = vec4(u_col * al, al);
+}`;
+
 // 面板上的水珠：每颗一个小方块（实例化绘制）。水填平了磨砂，透过水看到的是清楚的天空；
-// 圆水珠是倒像的透镜（加高光、暗边）；砸下瞬间摊成一片薄水膜（透镜弱、外缘一圈亮边），随后收回成水珠
+// 圆水珠是倒像的透镜（加高光、暗边）；砸下瞬间摊成一片薄水膜，随后收回成水珠
 const DROP_VS = `#version 300 es
 in vec2 a; in vec4 i_drop;                 // x, y（CSS 像素，y 向下），水珠半径，摊开倍数（1 = 圆珠）
 uniform vec2 u_css;
@@ -395,55 +468,137 @@ void main(){
 }`;
 const DROP_FS = `#version 300 es
 precision highp float;
-uniform sampler2D u_sky; uniform vec2 u_css;
+uniform sampler2D u_sky; uniform vec2 u_css; uniform float u_lod;
 in vec2 v_local; in float v_r; in float v_k; in vec2 v_center;
 out vec4 o;
 void main(){
-  float spread = clamp(v_k - 1.0, 0.0, 1.0);             // 摊开的程度
-  // 摊开的水膜边缘不是正圆：按角度起伏几瓣（每颗水珠按位置取不同的起伏）
+  float spread = clamp(v_k - 1.0, 0.0, 1.0);
   float seed = fract(sin(dot(v_center, vec2(12.9898, 78.233))) * 43758.5453);
   float ang = atan(v_local.y, v_local.x);
   float s2 = fract(seed * 7.13), s3 = fract(seed * 13.7);
   float lobes = sin(ang * 3.0 + seed * 6.28) * (0.3 + 0.4 * s2) + sin(ang * 7.0 - s2 * 11.0) * (0.25 + 0.3 * s3) + sin(ang * 12.0 + s3 * 17.0) * 0.2;
-  float wind = 0.25 * cos(ang - 0.45);                   // 斜着砸下：往右下方溅得更远
-  float R = v_r * v_k * (1.0 + spread * (0.22 * lobes + wind));   // 当前半径
+  float R = v_r * v_k * (1.0 + spread * 0.22 * lobes);
   float d = length(v_local);
   if (d > R + 1.0) discard;
   vec2 n = v_local / R;
   float ln = length(n);
-  float lens = clamp(1.0 / (v_k * v_k), 0.2, 1.0);       // 水量不变，摊得越开越薄，透镜越弱
-  // 倒像透镜：右边的像素取左边的景物，下面的取上面的（贴图 y 向上）；取样偏得比半径远，水珠像小鱼眼，能看到更大一片
+  float lens = clamp(1.0 / (v_k * v_k), 0.2, 1.0);
   vec2 uv = vec2(v_center.x, u_css.y - v_center.y) / u_css + vec2(-n.x, n.y) * R * 5.0 * lens / u_css;
-  vec3 c = textureLod(u_sky, uv, mix(1.2, 0.8, spread)).rgb * 1.05 + 0.02;
-  // 竖直玻璃上的水珠：上半边映着下方（暗），下半边映着天空（亮）
-  c *= mix(1.0, mix(0.72, 1.4, smoothstep(-0.7, 0.85, n.y)), lens);
-  c *= 1.0 - 0.45 * lens * smoothstep(0.62, 1.0, ln);                                         // 边缘一圈暗（全反射）
-  c += vec3(1.0) * 0.95 * lens * smoothstep(0.3, 0.1, length(n - vec2(-0.34, -0.42)));       // 左上角的高光点
-  c += vec3(1.0) * 0.22 * lens * smoothstep(0.55, 0.0, length(n - vec2(0.28, 0.55)));       // 右下角聚光
+  vec3 c = textureLod(u_sky, uv, max(mix(1.2, 0.8, spread) - u_lod, 0.0)).rgb * 1.05 + 0.02;
+  c *= mix(1.0, mix(0.74, 1.3, smoothstep(-0.7, 0.85, n.y)), lens);
+  c *= 1.0 - 0.4 * lens * smoothstep(0.62, 1.0, ln);
+  c += vec3(1.0) * 0.6 * lens * smoothstep(0.3, 0.1, length(n - vec2(-0.34, -0.42)));
+  c += vec3(1.0) * 0.16 * lens * smoothstep(0.55, 0.0, length(n - vec2(0.28, 0.55)));
   float facing = 0.25 + 0.75 * max(0.0, dot(normalize(v_local + 1e-4), normalize(vec2(-0.45, -0.7))));
-  c += vec3(1.0) * 0.6 * facing * spread * smoothstep(0.7, 0.94, ln) * smoothstep(1.03, 0.94, ln);   // 水膜外缘的亮边（朝光一侧亮）
-  c += vec3(1.0) * 0.08 * spread;                                                              // 湿的地方更通透
-  float a = smoothstep(R, R - 0.8, d) * mix(0.95, 0.8, spread);
+  c += vec3(1.0) * 0.4 * facing * spread * smoothstep(0.7, 0.94, ln) * smoothstep(1.03, 0.94, ln);
+  c += vec3(1.0) * 0.06 * spread;
+  float a = smoothstep(R, R - 0.8, d) * mix(0.92, 0.75, spread);
   if (a <= 0.002) discard;
   o = vec4(c * a, a);
 }`;
-// 砸下后的摊开倍数：约 0.06 s 摊到 1.7 倍，0.12 s 收回到 1，0.18 s 略收过头，再回弹一下，0.4 s 后静止。
-// 真实的撞击只有几十毫秒，30 帧下只占一帧看不出来，所以把过程放慢到 4～5 帧
 function spreadAt(age) {
   if (age > 0.4) return 1;
   const s0 = Math.sin((Math.PI * age) / 0.12), s = s0 < 0 ? s0 * 0.35 : s0;
-  return (1 + 1.1 * Math.exp(-age / 0.16) * s) * (0.5 + 0.5 * Math.min(1, age / 0.03));
+  return (1 + 0.8 * Math.exp(-age / 0.16) * s) * (0.5 + 0.5 * Math.min(1, age / 0.03));
 }
-// 调试：slowmo 让水珠的物理变慢（看清砸下的过程）；droptest 每隔这么多秒在最后一块面板中央砸一颗大雨点（不下普通的雨）
-const SLOWMO = Number(params.get("slowmo") || 1), DROP_TEST = Number(params.get("droptest") || 0);
+const SLOWMO = num("slowmo", 1);
 
+// ================= 时间与天气 → 画面参数 =================
+// 太阳高度（-1 深夜 … 0 日出日落 … 1 正午）→ 天空上、中、下三段色。
+// 晴天顶上是偏暗、不太饱和的蓝，往下变浅；阴天顶上亮、往下暗
+const SKY_CLEAR = [
+  [-1, "#040712", "#080d20", "#101731"],
+  [-0.35, "#0b1129", "#131a3a", "#232949"],
+  [-0.12, "#19244a", "#383a66", "#86678a"],
+  [0, "#2a3d76", "#786b9b", "#e8a17e"],
+  [0.1, "#36578f", "#8c93b9", "#efbd92"],
+  [0.3, "#3a6298", "#5884bb", "#92b5e1"],
+  [1, "#3a6196", "#4f7db5", "#86addf"],
+];
+const SKY_GRAY = [
+  [-1, "#0c0f15", "#11151d", "#181d27"],
+  [-0.35, "#0f131a", "#151a23", "#1d232d"],
+  [-0.12, "#232a36", "#2c3440", "#3c414c"],
+  [0, "#4a5261", "#4f5665", "#6a6770"],
+  [0.1, "#626b79", "#5a6372", "#6b6e78"],
+  [0.3, "#767f8c", "#667080", "#56606e"],
+  [1, "#79828f", "#687281", "#56606e"],
+];
+const lin3 = (hex) => hexToRgb(hex).map(toLin);
+const mix3 = (a, b, t) => a.map((v, i) => v + (b[i] - v) * t);
+const mul3 = (a, k) => a.map((v) => v * k);
+// 相机：俯仰角与上下视角（度）。大卡片从接近地平线看到半空；中卡片只取中间一条；小卡片视角相近、整体缩小
+const CAMERA = { l: [29, 46], m: [34, 23], s: [28, 40] };
+const SUN_X = { l: 0.5, m: 0.56, s: 0.74 };   // 正午太阳在卡片上方的哪里（占宽度的比例）
+function scene2(condId, hour, size, w, h) {
+  const c = condById(condId);
+  const e = elevation(hour);
+  const day = clamp((e + 0.1) / 0.3);                       // 白天 1、夜里 0
+  const golden = clamp(1 - Math.abs(e - 0.05) / 0.16);      // 日出日落前后
+  const dusk = clamp(1 - Math.abs(e + 0.08) / 0.12);        // 太阳刚落下
+  const night = clamp((-e - 0.1) / 0.25);
+  const gray = c.gray ?? 0, dark = c.dark ?? 0;
+  const clear = sampleSky(SKY_CLEAR, e), grayS = sampleSky(SKY_GRAY, e);
+  const sky = clear.map((col, k) => { const m = mixLab(col, grayS[k], gray); const kk = 1 - 0.24 * dark * (0.55 + 0.45 * day); return [m[0] * kk, m[1], m[2] + 0.004 * dark]; });
+  if (size !== "l") sky[2] = mixLab(sky[1], sky[2], size === "s" ? 0.4 : 0.55);
+  // 太阳锚点始终在画面之外，只有光洒进来。上午九点到下午三点多在卡片正上方；
+  // 更早、更晚时先往右上方远离画面（光淡出），再从右下角之外回来（日出日落的光从右下方来），不经过右上角的文字
+  const up = clamp(e), aspect = w / h;
+  const off = (0.13 * 360) / h;             // 离卡片边缘约 47 像素（各尺寸相同）
+  const tt = clamp((0.62 - up) / 0.62) ** 1.1 + 0.5 * clamp(-e / 0.3);
+  const P0 = [SUN_X[size] * aspect, -off], P1 = [1.3 * aspect, -1.6], P2 = [aspect + off, 0.72];
+  const sun = [0, 1].map((k) => (1 - tt) ** 2 * P0[k] + 2 * tt * (1 - tt) * P1[k] + tt * tt * P2[k]);
+  const sunVis = clamp((e + 0.1) / 0.14) * (c.sun ?? 0);
+  let sunCol = mix3(lin3("#fffdf8"), lin3("#ffb878"), golden);
+  sunCol = mix3(sunCol, lin3("#ff8a60"), dusk * 0.7);
+  // 云的受光色与环境光色（线性光）：白天受光近白、背阴带天空的蓝；黄金时刻暖；日落后粉紫；夜里很暗的冷色
+  let lit = mix3(mul3(lin3("#ffe9b0"), num("litK", 0.55)), mul3(lin3("#ffb074"), 0.5), golden);
+  lit = mix3(lit, mul3(lin3("#e99aa6"), 0.3), dusk);
+  lit = mix3(lit, mul3(lin3("#8f9dc8"), 0.07), night);
+  let amb = mix3(mul3(lin3("#b3c3df"), num("ambK", 1.0)), mul3(lin3("#8f86b4"), 0.5), golden);
+  amb = mix3(amb, mul3(lin3("#5b5a86"), 0.24), dusk);
+  amb = mix3(amb, mul3(lin3("#3b4568"), 0.11), night);
+  // 阴天：没有直射光，云只比天略亮；雨天：云比天还暗
+  const gLit = mix3(mul3(lin3("#8f9bb4"), 0.06), mul3(lin3("#fbfaf8"), 0.33), day), gAmb = mix3(mul3(lin3("#4a5470"), 0.09), mul3(lin3("#eef1f6"), 0.21), day);
+  lit = mix3(lit, gLit, gray); amb = mix3(amb, gAmb, gray);
+  const dk = clamp(dark), ex = 1 - (1 - num("expo", 0.66)) * day * (1 - gray);
+  lit = mul3(lit, (1 - 0.78 * dk) * ex); amb = mul3(amb, (1 - 0.62 * dk) * ex);
+  return {
+    c, e, day, golden, dusk, night, sky, sun, sunCol, lit, amb,
+    glowK: sunVis * (num("glow", 0.85) - 0.25 * golden) * (1 - 0.5 * gray), sunVis,
+    halo: sunVis * (c.cov < 0.2 ? num('halo', 0.02) : 0) * (1 - golden),
+    fwdK: 0.9 * sunVis + 0.25 * dusk * (1 - gray),
+    hazeK: 0.22 + 0.25 * gray,
+    moon: [size === "s" ? 0.78 : 0.62, size === "m" ? 0.2 : 0.16, clamp((-e - 0.05) / 0.25) * clamp(1 - 1.15 * c.cov)],
+    stars: clamp((-e - 0.1) / 0.3) * clamp(1 - c.cov * 1.05),
+    fogCol: mix3(labToRgb(sky[1]).map(toLin), [0.3, 0.32, 0.36], 0.5 * day + 0.08),
+    layers: layersFor(c, { day, golden, dusk, night }),
+  };
+}
+// 云层配置（最多三层，远到近）。每层四组数：
+// A 大小、云量门槛（越低云越多）、边缘软硬、浓度；B 沿风向拉长几倍、扭曲、啃边、飘动速度；
+// C 鼓包多少、背光压暗、往下收敛的起止位置；D 收敛幅度、细节的密度、云边毛絮多少、云的厚度（0 = 一层薄云）
+function layersFor(c, t) {
+  // 高处的薄云：沿风向拉成长丝；一朵朵的小云：有厚度、边缘毛絮少；成片的云：更大、边缘更碎；铺满天的云层：起伏很缓
+  const wisp = (th, a) => [[0.8, th, 0.4, a], [3.2, 0.5, 0.4, 0.004], [0.15, 0.3, 0.3, 0.85], [0.32, 3.1, 0.3, 0]];
+  const puff = (th, dens, scale = num("scale", 1.5), fray = num("fray", 0.3)) => [[scale, th, num("soft", 0.3), dens * num("dens", 0.7)], [1.15, num("warp", 0.12), num("erode", 0.42), 0.007], [num("billow", 0.5), num("shadow", 1.3), 0.3, 0.8], [0.3, num("dscale", 1.4), fray, num("thick", 0.1) / scale]];
+  const mass = (th, dens) => puff(th, dens, num("mscale", 0.95), num("mfray", 0.5));
+  const sheet = (th, a) => [[0.62, th, 0.5, a], [1.6, 0.35, 0.25, 0.003], [0.5, 0.7, 0.5, 1.0], [0.1, 2.6, 0.4, 0]];
+  switch (c.id) {
+    case "clear": return [];
+    case "partly": return [wisp(0.58, 0.45), puff(num("th", 0.57), 1)];
+    case "cloudy": return [wisp(0.5, 0.55), mass(num("th", 0.5), 1)];
+    case "overcast": case "fog": case "snow": return [sheet(0.3, 0.9), mass(0.46, 1)];
+    default: return [sheet(0.28, 0.95), mass(0.44, 1.1)];
+  }
+}
 
 // ================= 渲染器 =================
-function makeProgram(gl, vs, fs) {
+function makeProgram(gl, vs, fs, attribs = ["a"]) {
   const sh = (type, src) => { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s)); return s; };
   const p = gl.createProgram();
   gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs));
-  gl.bindAttribLocation(p, 0, "a"); gl.bindAttribLocation(p, 1, "i_drop");
+  attribs.forEach((n, i) => gl.bindAttribLocation(p, i, n));
   gl.linkProgram(p);
   if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
   const cache = {};
@@ -464,85 +619,44 @@ function colorTarget(gl, w, h, mips) {
   gl.bindFramebuffer(gl.FRAMEBUFFER, null);
   return { tex, fbo, w, h };
 }
-
-const IMG_CACHE = new Map();
-function loadImage(src) {
-  if (!IMG_CACHE.has(src)) IMG_CACHE.set(src, new Promise((resolve, reject) => { const im = new Image(); im.onload = () => resolve(im); im.onerror = reject; im.src = src; }));
-  return IMG_CACHE.get(src);
-}
-function lightColors(sc) {
-  // 光的颜色（着色器里乘上照片亮度）：lit 是阳光，shade 是天光。
-  // 正午近白（天光略偏蓝）、黄金时刻暖、日落后粉紫、夜里月光冷蓝；阴天阳光照不透，整体成中灰；雨天再压暗
-  const e = sc.e, night = clamp((-e - 0.05) / 0.25), gray = sc.c.gray ?? 0;
-  const golden = sc.golden * (1 - 0.7 * gray), dusk = clamp(-e / 0.12) * (1 - night) * (1 - 0.6 * gray);
-  let lit = mixLab(lab(OLD ? "#fffaf2" : "#ffffff"), lab("#ffc58e"), golden);   // 新：正午的阳光是白的，奶油色让云发黄
-  lit = mixLab(lit, lab("#f0aeb4"), dusk);
-  lit = mixLab(lit, lab("#c2c8d0"), gray * 0.85 * (1 - night));
-  lit = mixLab(lit, lab("#5d6884"), night);
-  let shade = mixLab(lab("#e2e8f1"), lab("#c4b4cc"), golden);
-  shade = mixLab(shade, lab("#8a84a8"), dusk);
-  shade = mixLab(shade, lab("#a4adba"), gray * 0.8 * (1 - night));
-  shade = mixLab(shade, lab("#252c42"), night);
-  const dark = sc.c.dark ?? 0;
-  const k = 1 - 0.45 * dark;
-  return { lit: labToRgb(lit).map((x) => x * k), shade: labToRgb(shade).map((x) => x * (1 - 0.35 * dark)) };
-}
-
-// 白字背后允许的最高相对亮度：0.26 约合白字 3.4:1（大字够，小字差一点）；面板底色 0.2 约合 4.2:1
-const TEXT_LUM = Number(params.get("textLum") || 1), PANEL_LUM = Number(params.get("panelLum") || (OLD ? 0.24 : 0.15));   // 新面板整体再暗一些：白字对比度中位约 5:1
-// 新配色与新面板的参数（网址可调）：depth 云暗部保留多少、ambSky 背阴面染多少天空色、pmip 面板按多大一片压暗、pcap 面板个别亮点的软上限
-const DEPTH = Number(params.get("depth") || 0.55), AMB_SKY = Number(params.get("ambSky") || 0.4);
-const PANEL_MIP = Number(params.get("pmip") || 7.5), PANEL_CAP = Number(params.get("pcap") || 0.24), FROST = Number(params.get("frost") || 32);
-const PANEL_TINT = Number(params.get("ptint") ?? 0.3);
-class WeatherTexCard {
-  constructor(el, canvas, cssW, cssH, sc, panels, texts = []) {
+// 面板参数（网址可调）；sres：天空按 CSS 像素的几倍来画（云是软的，不必按屏幕的 2 倍像素画）
+const PANEL_LUM = num("panelLum", 0.15), PANEL_MIP = num("pmip", 7.5), PANEL_CAP = num("pcap", 0.24), FROST = num("frost", 32), PANEL_TINT = num("ptint", 0.3);
+const SRES = num("sres", 1), SKY_HZ = num("skyhz", 0);
+class SkyCard {
+  constructor(el, canvas, cssW, cssH, sc, panels, size) {
     const gl = canvas.getContext("webgl2", { antialias: false, alpha: false, premultipliedAlpha: false, powerPreference: "low-power" });
     if (!gl) throw new Error("没有 WebGL2");
-    this.gl = gl; this.sc = sc; this.panels = panels; this.texts = texts; this.cssW = cssW; this.cssH = cssH;
-    this.dpr = Math.min(2, window.devicePixelRatio || 1); // 手机 3 倍屏按 2 倍画，省显卡
+    this.gl = gl; this.sc = sc; this.panels = panels; this.cssW = cssW; this.cssH = cssH; this.size = size;
+    this.dpr = Math.min(2, window.devicePixelRatio || 1);   // 手机 3 倍屏按 2 倍画，省显卡
     canvas.width = Math.round(cssW * this.dpr); canvas.height = Math.round(cssH * this.dpr);
     this.W = canvas.width; this.H = canvas.height;
+    this.sw = Math.max(8, Math.round(cssW * Math.min(SRES, this.dpr))); this.sh = Math.max(8, Math.round(cssH * Math.min(SRES, this.dpr)));
     this.pSky = makeProgram(gl, VERT, SKY_FS);
     this.pFinal = makeProgram(gl, VERT, FINAL_FS);
-    this.pDrop = makeProgram(gl, DROP_VS, DROP_FS);
+    this.pDrop = makeProgram(gl, DROP_VS, DROP_FS, ["a", "i_drop"]);
+    this.pLine = makeProgram(gl, LINE_VS, LINE_FS, ["a", "i_seg", "i_wa"]);
     this.vao = gl.createVertexArray(); gl.bindVertexArray(this.vao);
     const tri = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, tri); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 3, -1, -1, 3]), gl.STATIC_DRAW);
     gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
-    this.dvao = gl.createVertexArray(); gl.bindVertexArray(this.dvao);
     const quad = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
-    gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.dvao = gl.createVertexArray(); gl.bindVertexArray(this.dvao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     this.inst = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.inst); gl.bufferData(gl.ARRAY_BUFFER, 4 * 4 * 1000, gl.DYNAMIC_DRAW);
     gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 0, 0); gl.vertexAttribDivisor(1, 1);
+    this.lvao = gl.createVertexArray(); gl.bindVertexArray(this.lvao);
+    gl.bindBuffer(gl.ARRAY_BUFFER, quad); gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+    this.MAXL = 1400; this.lineData = new Float32Array(this.MAXL * 6);
+    this.linst = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, this.linst); gl.bufferData(gl.ARRAY_BUFFER, this.lineData.byteLength, gl.DYNAMIC_DRAW);
+    gl.enableVertexAttribArray(1); gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 24, 0); gl.vertexAttribDivisor(1, 1);
+    gl.enableVertexAttribArray(2); gl.vertexAttribPointer(2, 2, gl.FLOAT, false, 24, 16); gl.vertexAttribDivisor(2, 1);
     gl.bindVertexArray(null);
-    // 云层：按天气取层配置，每层一张贴图（加载完成前不画）
-    const conf = LAYERS[sc.c.id] || [];
-    this.layers = [];
-    let seed = 0;
-    for (const L of conf) {
-      const list = TEX[L.kind] || [];
-      if (!list.length) continue;
-      const src = list[(seed++ + (TUNE_SEED ?? 0)) % list.length];
-      const tex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, 1, 1, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array([0, 0, 0, 0]));
-      const layer = { ...L, tex, aspect: 2, offset: FIXED_OFS == null ? Math.random() : (FIXED_OFS + 0.37 * this.layers.length) % 1, ready: false };
-      this.layers.push(layer);
-      loadImage(src).then((im) => {
-        if (this.disposed) return;
-        gl.bindTexture(gl.TEXTURE_2D, tex);
-        // 只取亮度（与透明度）：每像素 1～2 字节，显存是 RGBA 的 1/4～1/2
-        const fmt = L.full ? gl.LUMINANCE : gl.LUMINANCE_ALPHA;
-        gl.texImage2D(gl.TEXTURE_2D, 0, fmt, fmt, gl.UNSIGNED_BYTE, im);
-        gl.generateMipmap(gl.TEXTURE_2D);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
-        gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-        layer.aspect = im.width / im.height; layer.ready = true;
-        this.applyLayers();
-      });
-    }
-    this.sky = colorTarget(gl, this.W, this.H, true);
+    this.noise = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, this.noise);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, NOISE_N, NOISE_N, 0, gl.RGBA, gl.UNSIGNED_BYTE, NOISE);
+    gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+    this.sky = colorTarget(gl, this.sw, this.sh, true);
     this.snowW = 256; this.snowRows = 4;
     this.snowData = new Float32Array(this.snowW * this.snowRows);
     this.snowBytes = new Uint8Array(this.snowW * this.snowRows);
@@ -551,8 +665,9 @@ class WeatherTexCard {
     gl.texStorage2D(gl.TEXTURE_2D, 1, gl.R8, this.snowW, this.snowRows);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.drops = [];
-    this.lastT = null;
+    this.drops = []; this.streaks = []; this.sparks = [];
+    this.lastT = null; this.lastSky = -1e9;
+    this.seed = SEED == null ? Math.random() * 10 : SEED;
     this.timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
     this.pending = [];
     this.applyScene();
@@ -561,94 +676,112 @@ class WeatherTexCard {
     const gl = this.gl, sc = this.sc, c = sc.c;
     gl.useProgram(this.pSky.p);
     const s = this.pSky.u;
-    ["l0", "l1", "l2", "l3"].forEach((n, i) => gl.uniform1i(s(n), 2 + i));
-    gl.uniform2f(s("res"), this.W, this.H); gl.uniform1f(s("dpr"), this.dpr); gl.uniform1f(s("aspect"), this.cssW / this.cssH);
-    const rgb = (x) => labToRgb(x);
-    gl.uniform3fv(s("top"), rgb(sc.sky[0])); gl.uniform3fv(s("mid"), rgb(sc.sky[1])); gl.uniform3fv(s("bot"), rgb(sc.sky[2]));
-    gl.uniform3fv(s("sunCore"), rgb(sc.sunCore)); gl.uniform3fv(s("glow"), rgb(sc.glow));
-    gl.uniform2fv(s("sun"), sc.sun); gl.uniform1f(s("sunVis"), sc.sunVis);
-    gl.uniform2fv(s("moon"), sc.moon); gl.uniform1f(s("moonVis"), sc.moonVis); gl.uniform1f(s("moonPhase"), MOON_PHASE);
-    gl.uniform1f(s("stars"), sc.stars * clamp(1 - c.cov * 1.1));
-    const lc = lightColors(sc);
-    gl.uniform3fv(s("litCol"), lc.lit); gl.uniform3fv(s("shadeCol"), lc.shade);
-    // 太阳越低越容易处在云的后方（看向太阳那边的云是逆光的）
-    gl.uniform1f(s("back"), sc.sunVis * (0.15 + 0.6 * sc.golden));
-    gl.uniform1f(s("dark"), c.dark ?? 0);
-    gl.uniform1f(s("rain"), c.rain ?? 0); gl.uniform1f(s("heavy"), c.heavy ?? 0); gl.uniform1f(s("snow"), c.snow ?? 0);
-    gl.uniform1f(s("fog"), c.fog ?? 0); gl.uniform1f(s("wind"), c.wind ?? 1); gl.uniform3fv(s("fogCol"), labToRgb(sc.fogCol));
-    gl.uniform1f(s("v3"), OLD ? 0 : 1); gl.uniform1f(s("depth"), DEPTH); gl.uniform1f(s("ambSky"), AMB_SKY);
-    this.applyLayers();
+    gl.uniform1i(s("noise"), 2);
+    gl.uniform2f(s("res"), this.sw, this.sh); gl.uniform1f(s("aspect"), this.cssW / this.cssH); gl.uniform1f(s("px"), this.cssW / this.sw);
+    gl.uniform3fv(s("top"), labToRgb(sc.sky[0])); gl.uniform3fv(s("mid"), labToRgb(sc.sky[1])); gl.uniform3fv(s("bot"), labToRgb(sc.sky[2]));
+    const [pitch, fov] = CAMERA[this.size].map((d) => (d * Math.PI) / 180);
+    gl.uniform3f(s("cam"), Math.sin(pitch), Math.cos(pitch), 1 / Math.tan(fov / 2)); gl.uniform1f(s("dth"), (2 * Math.tan(fov / 2)) / this.sh);
+    gl.uniform2fv(s("sun"), sc.sun); gl.uniform3fv(s("sunCol"), sc.sunCol); gl.uniform1f(s("glowK"), sc.glowK); gl.uniform1f(s("halo"), sc.halo); gl.uniform1f(s("gs"), this.cssH / 360);
+    gl.uniform3fv(s("lit"), sc.lit); gl.uniform3fv(s("amb"), sc.amb); gl.uniform1f(s("hazeK"), sc.hazeK); gl.uniform1f(s("fwdK"), sc.fwdK);
+    const L = sc.layers, pack = (k) => { const f = new Float32Array(12); L.forEach((l, i) => f.set(l[k], i * 4)); return f; };
+    gl.uniform4fv(s("LA"), pack(0)); gl.uniform4fv(s("LB"), pack(1)); gl.uniform4fv(s("LC"), pack(2)); gl.uniform4fv(s("LD"), pack(3)); gl.uniform1i(s("nl"), L.length);
+    gl.uniform2f(s("wind"), c.wind ?? 1, 0.12 * (c.wind ?? 1)); gl.uniform1f(s("seed"), this.seed); gl.uniform1f(s("jit"), num("jit", 0)); gl.uniform1f(s("bump"), num("bump", 1.2)); gl.uniform1f(s("vig"), num("vig", 0.3) * sc.day);
+    gl.uniform1f(s("stars"), sc.stars); gl.uniform3fv(s("moon"), sc.moon); gl.uniform1f(s("moonPhase"), MOON_PHASE);
+    gl.uniform1f(s("fog"), c.fog ?? 0); gl.uniform3fv(s("fogCol"), sc.fogCol);
+    gl.uniform1f(s("snow"), c.snow ?? 0); gl.uniform1f(s("snowWind"), c.wind ?? 1);
     gl.useProgram(this.pFinal.p);
     const f = this.pFinal.u;
     gl.uniform1i(f("sky"), 0); gl.uniform1i(f("snowH"), 1);
-    gl.uniform2f(f("res"), this.W, this.H); gl.uniform1f(f("dpr"), this.dpr);
+    gl.uniform2f(f("res"), this.W, this.H); gl.uniform1f(f("dpr"), this.dpr); gl.uniform1f(f("lod"), Math.log2(this.W / this.sw));
     gl.uniform1i(f("nPanels"), this.panels.length); gl.uniform1f(f("rows"), this.snowRows);
     const flat = new Float32Array(12); this.panels.forEach((p, i) => flat.set([p.x, p.y, p.w, p.h], i * 4));
     gl.uniform4fv(f("panels"), flat);
-    const tflat = new Float32Array(16); this.texts.slice(0, 4).forEach((p, i) => tflat.set([p.x, p.y, p.w, p.h], i * 4));
-    gl.uniform4fv(f("texts"), tflat); gl.uniform1i(f("nTexts"), Math.min(4, this.texts.length));
-    gl.uniform1f(f("textLum"), TEXT_LUM); gl.uniform1f(f("panelLum"), PANEL_LUM);
-    gl.uniform1f(f("v3"), OLD ? 0 : 1); gl.uniform1f(f("pmip"), PANEL_MIP); gl.uniform1f(f("pcap"), PANEL_CAP); gl.uniform1f(f("frost"), FROST);
-    gl.uniform3fv(f("ptintCol"), rgb(sc.sky[0])); gl.uniform1f(f("ptint"), PANEL_TINT);
+    gl.uniform1f(f("panelLum"), PANEL_LUM); gl.uniform1f(f("pmip"), PANEL_MIP); gl.uniform1f(f("pcap"), PANEL_CAP); gl.uniform1f(f("frost"), FROST);
+    gl.uniform3fv(f("ptintCol"), labToRgb(sc.sky[0])); gl.uniform1f(f("ptint"), PANEL_TINT);
     gl.useProgram(this.pDrop.p);
-    gl.uniform1i(this.pDrop.u("sky"), 0); gl.uniform2f(this.pDrop.u("css"), this.cssW, this.cssH);
+    gl.uniform1i(this.pDrop.u("sky"), 0); gl.uniform2f(this.pDrop.u("css"), this.cssW, this.cssH); gl.uniform1f(this.pDrop.u("lod"), Math.log2(this.W / this.sw));
+    gl.useProgram(this.pLine.p);
+    gl.uniform2f(this.pLine.u("css"), this.cssW, this.cssH); gl.uniform4fv(this.pLine.u("panels"), flat); gl.uniform1i(this.pLine.u("nPanels"), this.panels.length);
+    const rc = mix3([0.5, 0.56, 0.68], [0.86, 0.9, 0.97], sc.day); gl.uniform3fv(this.pLine.u("col"), rc);
   }
-  applyLayers() {
-    const gl = this.gl, s = this.pSky.u;
-    gl.useProgram(this.pSky.p);
-    const lp = new Float32Array(16), lq = new Float32Array(16);
-    let n = 0;
-    for (const L of this.layers) {
-      if (n >= 4) break;
-      lp.set([L.top ?? 0, L.bottom ?? 1, L.scale ?? 1, L.ready ? (L.alpha ?? 1) : 0], n * 4);
-      lq.set([(L.speed ?? 0.005) * (this.sc.c.wind ?? 1), L.full ? 1 : 0, L.aspect, L.offset], n * 4);
-      n++;
-    }
-    gl.uniform4fv(s("lp"), lp); gl.uniform4fv(s("lq"), lq); gl.uniform1i(s("nl"), n);
+  // 面板上沿在 x 处的高度（两端是圆角）；不在面板范围内返回 null
+  edgeY(p, x) {
+    if (x < p.x + 1 || x > p.x + p.w - 1) return null;
+    const r = 14, dx = Math.min(x - p.x, p.x + p.w - x);
+    return dx >= r ? p.y : p.y + r - Math.sqrt(Math.max(0, r * r - (r - dx) * (r - dx)));
   }
-  // 物理：面板上的水珠（落下、合并、长大后下滑并留下小珠、蒸发）与积雪（落点堆积、按休止角滑落、雪停后融化）
-  // 一颗雨点砸到面板上：主水珠（先摊开再收回）+ 几颗溅出去的小水珠（飞出几像素后被表面粘住）
+  // 一颗雨点砸到面板表面：主水珠（先摊开再收回）+ 几颗溅出去的小水珠
   impact(p, x, y, r, t) {
     const R = Math.random;
     this.drops.push({ x, y, r, born: t, panel: p, life: 4 + R() * 6, stick: R(), vy: 0 });
-    const ns = Math.round(R() * 4 * Math.min(1, r / 1.6)) + (r > 1.8 ? 3 : 1);
+    const ns = Math.round(R() * 3 * Math.min(1, r / 1.6));
     for (let i = 0; i < ns; i++) {
       const a = R() * Math.PI * 2;
       this.drops.push({ x, y, ox: x, oy: y, dx: Math.cos(a), dy: Math.sin(a), v0: (70 + R() * 150) * Math.min(1.3, r / 1.6), sat: true, r: 0.4 + R() * 0.5, born: t, panel: p, life: 0.8 + R() * 2.5, stick: 1, vy: 0 });
     }
   }
   step(dt, t) {
-    const c = this.sc.c, rain = c.rain ?? 0, snow = c.snow ?? 0;
-    const R = Math.random;
-    if (rain > 0 && !DROP_TEST) {
-      for (const p of this.panels) {
-        const rate = rain * p.w * p.h * 0.00022;            // 每秒落在这个面板上的雨点
-        let n = rate * dt; while (R() < n) { n -= 1; this.impact(p, p.x + 6 + R() * (p.w - 12), p.y + 6 + R() * (p.h - 12), 1.2 + R() * R() * 3.0, t); }
-      }
+    const c = this.sc.c, rain = c.rain ?? 0, heavy = c.heavy ?? 0, snow = c.snow ?? 0;
+    const R = Math.random, W = this.cssW, H = this.cssH;
+    // ---------- 雨丝：远处的又短又淡又慢，近处的长、亮、快；近处的碰到面板上沿会溅起水花 ----------
+    if (rain > 0) {
+      const slant = 0.015 + 0.05 * heavy * (c.storm ? 1.6 : 1);
+      const spawn = (near) => {
+        const sp = near ? 560 + R() * 200 + 120 * heavy : 300 + R() * 170 + 80 * heavy;
+        const len = near ? 13 + R() * 12 + 6 * heavy : 5 + R() * 8;
+        this.streaks.push({ x: -30 + R() * (W + 40), y: -R() * 30, vy: sp, vx: sp * slant, len, w: near ? 1.1 : 0.75, a: near ? 0.3 + R() * 0.25 : 0.1 + R() * 0.14, near });
+      };
+      let nNear = rain * (0.06 + 0.12 * heavy) * W * dt, nFar = rain * (0.22 + 0.3 * heavy) * W * dt;
+      while (R() < nNear) { nNear -= 1; spawn(true); }
+      while (R() < nFar) { nFar -= 1; spawn(false); }
     }
-    if (DROP_TEST && this.panels.length && t >= 1 && t - (this.testT ?? -1e9) >= DROP_TEST) {
-      this.testT = t; const p = this.panels[this.panels.length - 1];
-      this.impact(p, p.x + p.w * 0.5, p.y + p.h * 0.5, 2.6, t);
+    const keep = [];
+    for (const s of this.streaks) {
+      const y0 = s.y; s.y += s.vy * dt; s.x += s.vx * dt;
+      let hit = false;
+      if (s.near) for (const p of this.panels) {
+        const ey = this.edgeY(p, s.x);
+        if (ey != null && y0 <= ey && s.y >= ey) {              // 这一帧里穿过了面板上沿：停在上沿，溅起两三颗小水珠
+          s.y = ey; hit = true;
+          const n = 3 + (R() < 0.5 ? 1 : 0);
+          for (let i = 0; i < n; i++) this.sparks.push({ x: s.x, y: ey - 0.4, vx: (R() - 0.5) * 130, vy: -(30 + R() * 85), g: 520, age: 0, life: 0.15 + R() * 0.17, r: 0.4 + R() * 0.4, a: 0.5 + R() * 0.35, ey });
+          this.sparks.push({ x: s.x, y: ey - 0.6, vx: 0, vy: 0, g: 0, age: 0, life: 0.07, r: 1.5, a: 0.4, ey, flat: true });
+          break;
+        }
+      }
+      s.dead = hit;
+      if (s.y - s.len < H + 5) keep.push(s);
+    }
+    this.frameStreaks = keep;                                   // 这一帧要画的（含刚好砸到上沿的最后一段）
+    this.streaks = keep.filter((s) => !s.dead);
+    const sk = [];
+    for (const p of this.sparks) {
+      p.age += dt; p.vy += p.g * dt; p.x += p.vx * dt; p.y += p.vy * dt;
+      if (p.age < p.life && p.y <= p.ey) sk.push(p);
+    }
+    this.sparks = sk;
+    // ---------- 面板表面的水珠 ----------
+    if (rain > 0) {
+      for (const p of this.panels) {
+        let n = rain * p.w * p.h * 0.00012 * dt;
+        while (R() < n) { n -= 1; this.impact(p, p.x + 6 + R() * (p.w - 12), p.y + 6 + R() * (p.h - 12), 0.9 + R() * R() * 2.4, t); }
+      }
     }
     const next = [];
     for (const d of this.drops) {
       const age = t - d.born;
       d.life -= dt;
-      if (d.sat) {                                              // 溅出的小水珠：初速度很快衰减（表面把它粘住）
-        const s = d.v0 * 0.06 * (1 - Math.exp(-age / 0.06));
-        d.x = d.ox + d.dx * s; d.y = d.oy + d.dy * s;
-      }
-      if (d.r > 3.2 && age > 0.4) {                             // 大水珠下滑：时走时停
+      if (d.sat) { const s = d.v0 * 0.06 * (1 - Math.exp(-age / 0.06)); d.x = d.ox + d.dx * s; d.y = d.oy + d.dy * s; }
+      if (d.r > 3.2 && age > 0.4) {
         d.vy += 160 * dt * (d.r - 3.0) * (R() < 0.08 + 0.1 * d.stick ? 0 : 1);
         d.vy *= 0.9;
         const oy = d.y; d.y += d.vy * dt;
         if (Math.floor(oy / 7) !== Math.floor(d.y / 7) && R() < 0.6) { next.push({ x: d.x + (R() - 0.5) * 1.2, y: oy, r: 0.6 + R() * 0.5, vy: 0, born: t - 1, panel: d.panel, life: 2 + R() * 3, stick: R() }); d.r -= 0.05; }
         d.x += (R() - 0.5) * 0.4;
-      } else if (d.life < 0) { d.r -= dt * 0.5; }               // 蒸发
+      } else if (d.life < 0) { d.r -= dt * 0.5; }
       const p = d.panel;
       if (d.r > 0.2 && d.y < p.y + p.h - 2 && d.y > p.y + 1 && d.x > p.x + 1 && d.x < p.x + p.w - 1) next.push(d);
     }
-    // 合并：相互接触的水珠合成一颗（面积守恒）；刚砸下的（还在摊开、小水珠还在飞）先不合并
     next.sort((a, b) => a.x - b.x);
     for (let i = 0; i < next.length; i++) {
       const a = next[i]; if (a.r <= 0 || t - a.born < 0.25) continue;
@@ -659,71 +792,86 @@ class WeatherTexCard {
       }
     }
     this.drops = next.filter((d) => d.r > 0).slice(-900);
-    // 积雪
-    const W = this.snowW, rows = this.snowRows;
+    // ---------- 积雪 ----------
+    const SW = this.snowW, rows = this.snowRows;
     for (let row = 0; row < rows; row++) {
-      const hasEdge = row < this.panels.length || row === 3;
-      if (!hasEdge) continue;
-      const base = row * W;
-      const maxH = row === 3 ? 1 : 0.62;
+      if (!(row < this.panels.length || row === 3)) continue;
+      const base = row * SW, maxH = row === 3 ? 1 : 0.62;
       if (snow > 0) {
         let n = snow * dt * (row === 3 ? 40 : 28);
-        while (R() < n) { n -= 1; const x = Math.floor(R() * W), w = 2 + Math.floor(R() * 4), amt = 0.004 + R() * 0.006; for (let k = -w; k <= w; k++) { const i = x + k; if (i >= 0 && i < W) this.snowData[base + i] = Math.min(maxH, this.snowData[base + i] + amt * (1 - (k / (w + 1)) ** 2)); } }
+        while (R() < n) { n -= 1; const x = Math.floor(R() * SW), w = 2 + Math.floor(R() * 4), amt = 0.004 + R() * 0.006; for (let k = -w; k <= w; k++) { const i = x + k; if (i >= 0 && i < SW) this.snowData[base + i] = Math.min(maxH, this.snowData[base + i] + amt * (1 - (k / (w + 1)) ** 2)); } }
       } else {
-        for (let i = 0; i < W; i++) this.snowData[base + i] = Math.max(0, this.snowData[base + i] - dt * 0.004);
+        for (let i = 0; i < SW; i++) this.snowData[base + i] = Math.max(0, this.snowData[base + i] - dt * 0.004);
       }
-      for (let it = 0; it < 2; it++) for (let i = 1; i < W; i++) {          // 休止角：相邻格高差过大时往低处滑
+      for (let it = 0; it < 2; it++) for (let i = 1; i < SW; i++) {
         const a = base + i - 1, b = base + i, diff = this.snowData[a] - this.snowData[b], lim = 0.012;
         if (Math.abs(diff) > lim) { const m = (Math.abs(diff) - lim) * 0.5 * Math.sign(diff); this.snowData[a] -= m; this.snowData[b] += m; }
       }
     }
     for (let i = 0; i < this.snowData.length; i++) this.snowBytes[i] = Math.round(clamp(this.snowData[i]) * 255);
   }
-
   draw(now) {
     const gl = this.gl, c = this.sc.c;
     const t = now / 1000;
     const dt = this.lastT == null ? 0.016 : Math.min(0.1, t - this.lastT);
     this.lastT = t;
-    this.pt = (this.pt ?? 0) + dt / SLOWMO;                   // 水珠与积雪的物理时间（调试时可放慢）
+    this.pt = (this.pt ?? 0) + dt / SLOWMO;
     this.step(dt / SLOWMO, this.pt);
     let q = null;
     if (this.timer && this.pending.length < 4) { q = gl.createQuery(); gl.beginQuery(this.timer.TIME_ELAPSED_EXT, q); }
-    let flash = 0;
+    let flash = 0, flashAt = this.flashAt ?? [0.7, 0.2];
     if (c.storm) {
       const cyc = t / 5.7, ci = Math.floor(cyc), ph = cyc - ci, h = (x) => { const s = Math.sin(x * 127.1 + 311.7) * 43758.5453; return s - Math.floor(s); };
       const on = h(ci * 3.17) > 0.3 ? 1 : 0;
       flash = ((ph > 0.5 && ph < 0.53 ? 1 - (ph - 0.5) / 0.03 : 0) + (ph > 0.56 && ph < 0.61 ? 0.8 * (1 - (ph - 0.56) / 0.05) : 0)) * on;
+      flashAt = this.flashAt = [(this.cssW / this.cssH) * (0.2 + 0.6 * h(ci * 1.3)), 0.05 + 0.25 * h(ci * 2.1)];
     }
+    this.flashNow = flash;
     gl.bindVertexArray(this.vao);
-    this.layers.forEach((L, i) => { gl.activeTexture(gl.TEXTURE2 + i); gl.bindTexture(gl.TEXTURE_2D, L.tex); });
+    gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, this.noise);
     gl.activeTexture(gl.TEXTURE0);
-    // 2. 天空（渐变 + 云层 + 雾 + 雨雪），生成多级纹理
-    gl.bindFramebuffer(gl.FRAMEBUFFER, this.sky.fbo);
-    gl.viewport(0, 0, this.W, this.H);
-    gl.useProgram(this.pSky.p);
-    gl.uniform1f(this.pSky.u("time"), t); gl.uniform1f(this.pSky.u("flash"), flash);
-    gl.drawArrays(gl.TRIANGLES, 0, 3);
-    gl.bindTexture(gl.TEXTURE_2D, this.sky.tex); gl.generateMipmap(gl.TEXTURE_2D);
-    // 3. 面板与积雪
+    // 1. 天空与云（可以比屏幕粗、比每帧少画：云动得慢）
+    const skyDue = !SKY_HZ || flash > 0 || this.hadFlash || (c.snow ?? 0) > 0 || t - this.lastSky >= 1 / SKY_HZ - 0.004;
+    if (skyDue) {
+      this.lastSky = t; this.hadFlash = flash > 0;
+      gl.bindFramebuffer(gl.FRAMEBUFFER, this.sky.fbo);
+      gl.viewport(0, 0, this.sw, this.sh);
+      gl.useProgram(this.pSky.p);
+      gl.uniform1f(this.pSky.u("time"), FREEZE ?? t); gl.uniform1f(this.pSky.u("flash"), flash); gl.uniform2fv(this.pSky.u("flashAt"), flashAt);
+      gl.drawArrays(gl.TRIANGLES, 0, 3);
+      gl.bindTexture(gl.TEXTURE_2D, this.sky.tex); gl.generateMipmap(gl.TEXTURE_2D);
+    }
+    // 2. 面板与积雪
     gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.viewport(0, 0, this.W, this.H);
     gl.useProgram(this.pFinal.p);
     gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, this.snowTex);
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, 0, this.snowW, this.snowRows, gl.RED, gl.UNSIGNED_BYTE, this.snowBytes);
     gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.sky.tex);
     gl.uniform1f(this.pFinal.u("time"), t); gl.uniform1f(this.pFinal.u("snowAmt"), (c.snow ?? 0) > 0 || this.snowBytes.some((b) => b > 0) ? 1 : 0);
     gl.drawArrays(gl.TRIANGLES, 0, 3);
-    // 4. 水珠
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+    // 3. 雨丝与水花
+    const fs = this.frameStreaks ?? [], n = Math.min(this.MAXL, fs.length + this.sparks.length);
+    if (n) {
+      const L = this.lineData; let k = 0;
+      for (const s of fs) { if (k >= n) break; const lx = s.len * (s.vx / s.vy); L.set([s.x - lx, s.y - s.len, s.x, s.y, s.w, s.a], k++ * 6); }
+      for (const p of this.sparks) { if (k >= n) break; const fade = 1 - p.age / p.life, bl = p.flat ? 0 : 0.018; L.set(p.flat ? [p.x - 2.2, p.y, p.x + 2.2, p.y, 0.8, p.a * fade] : [p.x - p.vx * bl, p.y - p.vy * bl, p.x, p.y, p.r * 2, p.a * Math.min(1, fade * 2)], k++ * 6); }
+      gl.bindVertexArray(this.lvao);
+      gl.bindBuffer(gl.ARRAY_BUFFER, this.linst); gl.bufferSubData(gl.ARRAY_BUFFER, 0, L, 0, k * 6);
+      gl.useProgram(this.pLine.p);
+      gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, k);
+    }
+    // 4. 面板表面的水珠
     if (this.drops.length) {
       const arr = new Float32Array(this.drops.length * 4);
       this.drops.forEach((d, i) => arr.set([d.x, d.y, d.r, d.sat ? 1 : spreadAt(this.pt - d.born)], i * 4));
       gl.bindVertexArray(this.dvao);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.inst); gl.bufferSubData(gl.ARRAY_BUFFER, 0, arr);
       gl.useProgram(this.pDrop.p);
-      gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
       gl.drawArraysInstanced(gl.TRIANGLE_STRIP, 0, 4, this.drops.length);
-      gl.disable(gl.BLEND);
     }
+    gl.disable(gl.BLEND);
     if (q) { gl.endQuery(this.timer.TIME_ELAPSED_EXT); this.pending.push(q); }
     while (this.pending.length && gl.getQueryParameter(this.pending[0], gl.QUERY_RESULT_AVAILABLE)) {
       const done = this.pending.shift();
@@ -749,9 +897,7 @@ function loop(now) {
   for (const c of cards) c.draw(now);
   perf.jsMs += performance.now() - s; perf.frames++;
 }
-function buildCard(size, condId, host) {
-  const sc = scene(condId, state.hour);
-  sc.c = condById(condId);
+function buildCard(size, condId, host, hour = state.hour) {
   const el = document.createElement("div");
   el.className = `card ${size}`;
   const canvas = document.createElement("canvas");
@@ -759,7 +905,7 @@ function buildCard(size, condId, host) {
   el.appendChild(canvas);
   const content = document.createElement("div");
   content.className = "content";
-  content.innerHTML = contentHTML3(size, sampleData(condId, state.hour), sc.c.label, condId);
+  content.innerHTML = contentHTML3(size, sampleData(condId, hour), condById(condId).label);
   if (!state.text) content.style.visibility = "hidden";
   el.appendChild(content);
   host.appendChild(el);
@@ -767,20 +913,30 @@ function buildCard(size, condId, host) {
   const w = Math.round(box.width) || SIZE_PX[size][0], h = Math.round(box.height) || SIZE_PX[size][1];
   const rel = (p) => { const r = p.getBoundingClientRect(); return { x: r.left - box.left, y: r.top - box.top, w: r.width, h: r.height }; };
   const panels = [...content.querySelectorAll("[data-panel]")].map(rel);
-  // 文字块按实际字形宽度量（行内元素），不要整行
-  const texts = [...content.querySelectorAll(".city,.temp,.cond,.hilo")].map((t) => { const s = document.createElement("span"); s.append(...t.childNodes); t.append(s); const r = rel(s); return r; });
-  try { cards.add(new WeatherTexCard(el, canvas, w, h, sc, panels, texts)); }
+  const sc = scene2(condId, hour, size, w, h);
+  try { cards.add(new SkyCard(el, canvas, w, h, sc, panels, size)); }
   catch (e) { console.error(e); el.insertAdjacentHTML("beforeend", `<pre style="position:absolute;inset:0;margin:0;padding:8px;font-size:10px;white-space:pre-wrap;color:#f88;overflow:auto;background:#000c">${String(e.message || e)}</pre>`); }
 }
+// sheet=partly@13,cloudy@17.7：一次并排画多张（自己对比用）
+const SHEET = params.get("sheet");
 function render() {
   for (const c of cards) c.dispose();
   cards.clear();
   const stage = document.getElementById("stage");
   stage.innerHTML = "";
-  const fig = document.createElement("figure");
-  stage.appendChild(fig);
-  buildCard(state.size, state.cond, fig);
-  fig.insertAdjacentHTML("beforeend", `<p class="stat" id="stat"></p>`);
+  const VARY = params.get("vary");
+  if (VARY) {
+    const [key, vals] = VARY.split(":");
+    for (const v of vals.split("|")) { window.__ov = { [key]: Number(v) }; const fig = document.createElement("figure"); stage.appendChild(fig); buildCard(state.size, state.cond, fig); fig.insertAdjacentHTML("beforeend", `<figcaption>${key} = ${v}</figcaption>`); }
+    window.__ov = {};
+  } else if (SHEET) {
+    for (const item of SHEET.split(",")) { const [cond, time] = item.split("@"); const fig = document.createElement("figure"); stage.appendChild(fig); buildCard(state.size, cond, fig, Number(time ?? state.hour)); fig.insertAdjacentHTML("beforeend", `<figcaption>${condById(cond).label} · ${time ?? state.hour} 时</figcaption>`); }
+  } else {
+    const fig = document.createElement("figure");
+    stage.appendChild(fig);
+    buildCard(state.size, state.cond, fig);
+    fig.insertAdjacentHTML("beforeend", `<p class="stat" id="stat"></p>`);
+  }
   const gal = document.getElementById("gallery");
   gal.innerHTML = "";
   document.getElementById("gal-title").hidden = !state.gallery;
@@ -791,12 +947,11 @@ function render() {
 }
 setInterval(() => {
   const now = performance.now(), secs = (now - perf.since) / 1000;
-  window.__perf = { fps: perf.frames / secs, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), gpuMsPerFrame: gpu.n ? gpu.ns / gpu.n / 1e6 : null, cards: cards.size };
+  window.__perf = { fps: perf.frames / secs, jsMsPerFrame: perf.jsMs / Math.max(1, perf.frames), gpuMsPerFrame: gpu.n ? gpu.ns / gpu.n / 1e6 : null, cards: cards.size, noiseMs: window.__noiseMs };
   const el = document.getElementById("stat");
   if (el) el.textContent = `每秒 ${Math.round(window.__perf.fps)} 帧；全部 ${cards.size} 张卡片每帧：脚本 ${window.__perf.jsMsPerFrame.toFixed(2)} ms` + (window.__perf.gpuMsPerFrame != null ? `，显卡 ${window.__perf.gpuMsPerFrame.toFixed(2)} ms` : "");
   perf.frames = 0; perf.jsMs = 0; perf.since = now; gpu.ns = 0; gpu.n = 0;
 }, 2000);
-window.__probeFps = (ms) => new Promise((resolve) => { let n = 0; const s = performance.now(); const tick = () => { n++; if (performance.now() - s < ms) requestAnimationFrame(tick); else resolve((n * 1000) / (performance.now() - s)); }; requestAnimationFrame(tick); });
 function chipGroup(id, items, key) {
   const g = document.getElementById(id);
   for (const it of items) { const b = document.createElement("button"); b.className = "chip"; b.textContent = it.label; b.dataset.value = it.id; b.onclick = () => { state[key] = it.id; render(); }; g.appendChild(b); }

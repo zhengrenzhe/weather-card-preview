@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>云的改前改后</title>
+<title>天气卡片：上一版和这一版</title>
 <style>
 :root { color-scheme: dark; }
 * { box-sizing: border-box; }
@@ -23,32 +23,32 @@ iframe { display: block; width: 100%; height: 360px; border: 0; border-radius: 2
 </head>
 <body>
 <header>
-  <h1>云的改前改后</h1>
-  <p>两张卡片分别是改之前和改之后，云的位置相同。改了三处：抠图不再把薄云压成实心团块，去掉了云边的灰色描边；正午阳光从奶油色改成白色，云的暗部带一点天空的蓝；面板改成大半径磨砂，按大片的平均亮度整体压暗，玻璃后面的白云不再变成灰团。</p>
-  <p>想单独看改后的效果、切换天气和时间，打开 <a href="./">样稿首页</a>。</p>
+  <h1>天气卡片：上一版和这一版</h1>
+  <p>两张卡片分别是上一版和这一版。这一版整个换了画法：云不再用照片，改成程序生成的小朵薄云，边缘是毛絮，按太阳的方向打光；太阳移到了卡片之外，只留洒进来的一片柔光；下雨时雨丝落到第一排信息栏的顶边会溅起水花。</p>
+  <p>想单独看这一版、切换天气、时间和卡片大小，打开 <a href="./">样稿首页</a>。</p>
 </header>
 <div class="chips" id="chips"></div>
 <section class="pair">
-  <figure><figcaption>改前</figcaption><iframe id="before" title="改前" loading="eager"></iframe></figure>
-  <figure><figcaption>改后</figcaption><iframe id="after" title="改后" loading="eager"></iframe></figure>
+  <figure><figcaption>上一版（照片贴图）</figcaption><iframe id="before" title="上一版" loading="eager"></iframe></figure>
+  <figure><figcaption>这一版</figcaption><iframe id="after" title="这一版" loading="eager"></iframe></figure>
 </section>
 <script>
 "use strict";
-// 对比的场景：天气、时刻、贴图起始位置（两边相同，云在同一处）
+// 对比的场景：天气与时刻。两版的云不是同一套，位置不对应
 const SCENES = [
-  { label: "多云 · 正午", q: "cond=cloudy&time=13", ofs: 0.12 },
-  { label: "少云 · 正午", q: "cond=partly&time=13", ofs: 0.55 },
-  { label: "多云 · 黄昏", q: "cond=cloudy&time=17.7", ofs: 0.3 },
-  { label: "多云 · 日出", q: "cond=cloudy&time=6.7", ofs: 0.71 },
-  { label: "阴", q: "cond=overcast&time=13", ofs: 0.4 },
-  { label: "大雨", q: "cond=rain&time=13", ofs: 0.2 },
+  { label: "少云 · 正午", q: "cond=partly&time=13" },
+  { label: "多云 · 正午", q: "cond=cloudy&time=13" },
+  { label: "晴 · 正午", q: "cond=clear&time=13" },
+  { label: "多云 · 黄昏", q: "cond=cloudy&time=17.7" },
+  { label: "阴", q: "cond=overcast&time=13" },
+  { label: "大雨", q: "cond=rain&time=13" },
+  { label: "少云 · 夜里", q: "cond=partly&time=22.5" },
 ];
 const chips = document.getElementById("chips");
 function show(i) {
   const s = SCENES[i];
-  const base = `index.html?${s.q}&size=l&gallery=0&bare=1&ofs=${s.ofs}`;
-  document.getElementById("before").src = `${base}&v=old`;
-  document.getElementById("after").src = base;
+  document.getElementById("before").src = `photo.html?${s.q}&size=l&gallery=0&bare=1&ofs=0.3`;
+  document.getElementById("after").src = `index.html?${s.q}&size=l&gallery=0&bare=1&seed=5`;
   chips.querySelectorAll(".chip").forEach((b, j) => b.setAttribute("aria-pressed", String(i === j)));
 }
 SCENES.forEach((s, i) => { const b = document.createElement("button"); b.className = "chip"; b.textContent = s.label; b.onclick = () => show(i); chips.appendChild(b); });
