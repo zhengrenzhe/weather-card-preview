@@ -48,7 +48,7 @@ const chips = document.getElementById("chips");
 function show(i) {
   const s = SCENES[i];
   document.getElementById("before").src = `photo.html?${s.q}&size=l&gallery=0&bare=1&ofs=0.3`;
-  document.getElementById("after").src = `index.html?${s.q}&size=l&gallery=0&bare=1&seed=5`;
+  document.getElementById("after").src = `index.html?${s.q}&size=l&gallery=0&bare=1&seed=6`;
   chips.querySelectorAll(".chip").forEach((b, j) => b.setAttribute("aria-pressed", String(i === j)));
 }
 SCENES.forEach((s, i) => { const b = document.createElement("button"); b.className = "chip"; b.textContent = s.label; b.onclick = () => show(i); chips.appendChild(b); });

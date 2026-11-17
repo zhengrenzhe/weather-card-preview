@@ -39,7 +39,7 @@ body.bare { background: transparent; min-height: 0; }
 canvas.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
 
 .content { position: absolute; inset: 0; padding: 14px 16px; display: flex; flex-direction: column; text-shadow: 0 1px 2px rgba(0, 0, 0, .18); }
-.city, .temp, .cond, .hilo { text-shadow: 0 1px 2px rgba(0, 0, 0, .2), 0 0 12px rgba(0, 0, 0, .16); }
+.city, .temp, .cond, .hilo { text-shadow: 0 1px 2px rgba(0, 0, 0, .26), 0 0 10px rgba(0, 0, 0, .22), 0 0 24px rgba(0, 0, 0, .14); }
 .city { font-size: 15px; font-weight: 500; display: flex; align-items: center; gap: 4px; }
 .city svg { width: 11px; height: 11px; }
 .temp { font-size: 46px; font-weight: 200; line-height: 1; letter-spacing: -1px; }
@@ -82,7 +82,7 @@ const num = (k, d) => (k in window.__ov ? window.__ov[k] : params.has(k) ? Numbe
 const CONDITIONS = [
   { id: "clear", label: "晴", cov: 0, sun: 1 },
   { id: "partly", label: "少云", cov: 0.4, sun: 1, wind: 1 },
-  { id: "cloudy", label: "多云", cov: 0.66, sun: 0.6, gray: 0.3, wind: 1.1 },
+  { id: "cloudy", label: "多云", cov: 0.66, sun: 0.7, gray: 0.14, wind: 1.1 },
   { id: "overcast", label: "阴", cov: 0.95, sun: 0, gray: 1, wind: 0.8 },
   { id: "fog", label: "雾", cov: 0.8, sun: 0, gray: 0.9, fog: 1, wind: 0.4 },
   { id: "drizzle", label: "小雨", cov: 0.95, sun: 0, gray: 1, rain: 0.35, dark: 0.45, wind: 1 },
@@ -194,7 +194,7 @@ uniform sampler2D u_noise;
 uniform vec2 u_res; uniform float u_time, u_aspect, u_px;   // u_px：这张贴图一个像素合多少 CSS 像素
 uniform vec3 u_top, u_mid, u_bot;                           // 天空三段色（sRGB）
 uniform vec3 u_cam; uniform float u_dth;                     // 相机：sin 俯仰、cos 俯仰、焦距；一个像素的张角
-uniform vec2 u_sun; uniform vec3 u_sunCol; uniform float u_glowK, u_halo, u_gs;   // 太阳锚点（x 以卡片高为单位，y 0 顶 1 底，可在画面外）
+uniform vec2 u_sun; uniform vec3 u_sunCol, u_skyGlow; uniform float u_glowK, u_halo, u_ghost, u_gs;   // 太阳锚点（x 以卡片高为单位，y 0 顶 1 底，可在画面外）
 uniform vec3 u_lit, u_amb; uniform float u_hazeK, u_fwdK;   // 云的受光色、环境光色（线性）；远处融进天色的快慢；朝太阳一侧薄云透亮的强度
 uniform vec4 u_LA[3], u_LB[3], u_LC[3], u_LD[3]; uniform int u_nl;
 uniform vec2 u_wind; uniform float u_seed, u_jit, u_vig, u_bump;
@@ -312,10 +312,19 @@ void main(){
   vec3 rd = rayDir(q), sd = rayDir(u_sun);
   // 太阳在画面外：只有洒进来的光（中心一团、外面一大片柔光），没有圆盘
   float r = length(q - u_sun) * u_gs;
-  col += u_sunCol * u_glowK * (sunGlow(r) + 0.09 * exp(-r * 1.25));
-  if (u_halo > 0.0) {                                        // 淡淡的日晕：内圈偏暖、外圈偏冷
-    float hr = (r - 0.36) / 0.02;
-    col += u_sunCol * u_halo * (vec3(1.0, 0.86, 0.72) * exp(-(hr + 0.45) * (hr + 0.45)) + vec3(0.72, 0.86, 1.0) * exp(-(hr - 0.45) * (hr - 0.45))) * smoothstep(1.3, 0.2, r);
+  col += u_skyGlow * u_glowK * (sunGlow(r) + 0.09 * exp(-r * 1.25));
+  if (u_halo > 0.0) {                                        // 日晕：太阳外面一圈淡淡的光环，内圈偏暖、外圈偏冷
+    float hr = (r - 0.3) / 0.017;
+    col += u_sunCol * u_halo * (vec3(1.0, 0.8, 0.62) * exp(-(hr + 0.55) * (hr + 0.55)) + vec3(0.62, 0.82, 1.0) * exp(-(hr - 0.55) * (hr - 0.55)) + 0.5 * exp(-hr * hr * 0.12) * step(hr, 0.0) * 0.5);
+  }
+  if (u_ghost > 0.0) {                                       // 镜头里的几个淡光斑，从太阳往左下排开
+    vec2 ax = normalize(vec2(-0.5, 1.0));
+    for (int k = 0; k < 3; k++) {
+      float fk = float(k);
+      vec2 gp = u_sun + ax * (0.2 + 0.105 * fk) / u_gs;
+      float dd = length(q - gp) * u_gs / (0.02 + 0.012 * fk);
+      col += u_sunCol * mix(vec3(1.0), vec3(0.75, 0.9, 1.0), fk * 0.5) * u_ghost * (0.55 + 0.45 * smoothstep(0.45, 1.0, dd)) * smoothstep(1.1, 0.9, dd) * (1.0 - 0.18 * fk);
+    }
   }
   if (u_stars > 0.0) {
     vec2 sg = g / 2.6; vec2 id = floor(sg); float h = hash12(id);
@@ -511,9 +520,9 @@ const SKY_CLEAR = [
   [-0.35, "#0b1129", "#131a3a", "#232949"],
   [-0.12, "#19244a", "#383a66", "#86678a"],
   [0, "#2a3d76", "#786b9b", "#e8a17e"],
-  [0.1, "#36578f", "#8c93b9", "#efbd92"],
-  [0.3, "#3a6298", "#5884bb", "#92b5e1"],
-  [1, "#3a6196", "#4f7db5", "#86addf"],
+  [0.1, "#31579f", "#8c93b9", "#efbd92"],
+  [0.3, "#2664c2", "#4587d8", "#7bade6"],
+  [1, "#1f5cc0", "#387dd6", "#70a5e4"],
 ];
 const SKY_GRAY = [
   [-1, "#0c0f15", "#11151d", "#181d27"],
@@ -555,18 +564,18 @@ function scene2(condId, hour, size, w, h) {
   let lit = mix3(mul3(lin3("#ffe9b0"), num("litK", 0.55)), mul3(lin3("#ffb074"), 0.5), golden);
   lit = mix3(lit, mul3(lin3("#e99aa6"), 0.3), dusk);
   lit = mix3(lit, mul3(lin3("#8f9dc8"), 0.07), night);
-  let amb = mix3(mul3(lin3("#b3c3df"), num("ambK", 1.0)), mul3(lin3("#8f86b4"), 0.5), golden);
+  let amb = mix3(mul3(lin3("#cad6ec"), num("ambK", 1.0)), mul3(lin3("#8f86b4"), 0.5), golden);
   amb = mix3(amb, mul3(lin3("#5b5a86"), 0.24), dusk);
   amb = mix3(amb, mul3(lin3("#3b4568"), 0.11), night);
   // 阴天：没有直射光，云只比天略亮；雨天：云比天还暗
   const gLit = mix3(mul3(lin3("#8f9bb4"), 0.06), mul3(lin3("#fbfaf8"), 0.33), day), gAmb = mix3(mul3(lin3("#4a5470"), 0.09), mul3(lin3("#eef1f6"), 0.21), day);
   lit = mix3(lit, gLit, gray); amb = mix3(amb, gAmb, gray);
-  const dk = clamp(dark), ex = 1 - (1 - num("expo", 0.66)) * day * (1 - gray);
+  const dk = clamp(dark), ex = 1 - (1 - num("expo", 0.84)) * day * (1 - gray);
   lit = mul3(lit, (1 - 0.78 * dk) * ex); amb = mul3(amb, (1 - 0.62 * dk) * ex);
   return {
-    c, e, day, golden, dusk, night, sky, sun, sunCol, lit, amb,
+    c, e, day, golden, dusk, night, sky, sun, sunCol, lit, amb, skyGlow: mix3([0.8, 0.92, 1.0], sunCol, clamp(golden + dusk)),
     glowK: sunVis * (num("glow", 0.85) - 0.25 * golden) * (1 - 0.5 * gray), sunVis,
-    halo: sunVis * (c.cov < 0.2 ? num('halo', 0.02) : 0) * (1 - golden),
+    halo: sunVis * num("halo", 0.07) * (1 - clamp(tt * 2.5)), ghost: sunVis * num("ghost", 0.05) * (1 - clamp(tt * 2.5)) * (size === "s" ? 0.7 : 1),
     fwdK: 0.9 * sunVis + 0.25 * dusk * (1 - gray),
     hazeK: 0.22 + 0.25 * gray,
     moon: [size === "s" ? 0.78 : 0.62, size === "m" ? 0.2 : 0.16, clamp((-e - 0.05) / 0.25) * clamp(1 - 1.15 * c.cov)],
@@ -681,11 +690,11 @@ class SkyCard {
     gl.uniform3fv(s("top"), labToRgb(sc.sky[0])); gl.uniform3fv(s("mid"), labToRgb(sc.sky[1])); gl.uniform3fv(s("bot"), labToRgb(sc.sky[2]));
     const [pitch, fov] = CAMERA[this.size].map((d) => (d * Math.PI) / 180);
     gl.uniform3f(s("cam"), Math.sin(pitch), Math.cos(pitch), 1 / Math.tan(fov / 2)); gl.uniform1f(s("dth"), (2 * Math.tan(fov / 2)) / this.sh);
-    gl.uniform2fv(s("sun"), sc.sun); gl.uniform3fv(s("sunCol"), sc.sunCol); gl.uniform1f(s("glowK"), sc.glowK); gl.uniform1f(s("halo"), sc.halo); gl.uniform1f(s("gs"), this.cssH / 360);
+    gl.uniform2fv(s("sun"), sc.sun); gl.uniform3fv(s("sunCol"), sc.sunCol); gl.uniform3fv(s("skyGlow"), sc.skyGlow); gl.uniform1f(s("glowK"), sc.glowK); gl.uniform1f(s("halo"), sc.halo); gl.uniform1f(s("ghost"), sc.ghost); gl.uniform1f(s("gs"), this.cssH / 360);
     gl.uniform3fv(s("lit"), sc.lit); gl.uniform3fv(s("amb"), sc.amb); gl.uniform1f(s("hazeK"), sc.hazeK); gl.uniform1f(s("fwdK"), sc.fwdK);
     const L = sc.layers, pack = (k) => { const f = new Float32Array(12); L.forEach((l, i) => f.set(l[k], i * 4)); return f; };
     gl.uniform4fv(s("LA"), pack(0)); gl.uniform4fv(s("LB"), pack(1)); gl.uniform4fv(s("LC"), pack(2)); gl.uniform4fv(s("LD"), pack(3)); gl.uniform1i(s("nl"), L.length);
-    gl.uniform2f(s("wind"), c.wind ?? 1, 0.12 * (c.wind ?? 1)); gl.uniform1f(s("seed"), this.seed); gl.uniform1f(s("jit"), num("jit", 0)); gl.uniform1f(s("bump"), num("bump", 1.2)); gl.uniform1f(s("vig"), num("vig", 0.3) * sc.day);
+    const wk = (c.wind ?? 1) * num("speed", 1.4); gl.uniform2f(s("wind"), wk, 0.12 * wk); gl.uniform1f(s("seed"), this.seed); gl.uniform1f(s("jit"), num("jit", 0)); gl.uniform1f(s("bump"), num("bump", 1.2)); gl.uniform1f(s("vig"), num("vig", 0.3) * sc.day);
     gl.uniform1f(s("stars"), sc.stars); gl.uniform3fv(s("moon"), sc.moon); gl.uniform1f(s("moonPhase"), MOON_PHASE);
     gl.uniform1f(s("fog"), c.fog ?? 0); gl.uniform3fv(s("fogCol"), sc.fogCol);
     gl.uniform1f(s("snow"), c.snow ?? 0); gl.uniform1f(s("snowWind"), c.wind ?? 1);
