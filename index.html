@@ -15,6 +15,7 @@ body {
 }
 .bar { position: sticky; top: 0; z-index: 10; display: flex; flex-wrap: wrap; gap: 10px 22px; align-items: center; padding: 12px 20px; background: rgba(16, 20, 27, .82); backdrop-filter: blur(14px); border-bottom: 1px solid rgba(255, 255, 255, .08); font-size: 13px; }
 .group { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.conds { display: flex; flex-wrap: wrap; gap: 8px 20px; flex-basis: 100%; }
 .group > .label { color: #9aa6b6; margin-right: 2px; }
 .chip { border: 1px solid rgba(255, 255, 255, .14); background: rgba(255, 255, 255, .04); color: #dfe5ee; border-radius: 999px; padding: 4px 10px; font: inherit; cursor: pointer; }
 .chip[aria-pressed="true"] { background: #e8ecf2; color: #10141b; border-color: #e8ecf2; }
@@ -61,7 +62,7 @@ canvas.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: bl
 </head>
 <body>
 <div class="bar">
-  <div class="group" id="g-cond"><span class="label">天气</span></div>
+  <div class="conds" id="g-cond"></div>
   <div class="group"><span class="label">时间</span><input type="range" id="hour" min="0" max="24" step="0.25" style="width:200px;accent-color:#e8ecf2"><span id="hour-out" style="min-width:44px"></span>
     <button class="chip" data-hour="6.7">日出</button><button class="chip" data-hour="13">白天</button><button class="chip" data-hour="17.7">黄昏</button><button class="chip" data-hour="22.5">夜里</button></div>
   <div class="group" id="g-size"><span class="label">尺寸</span></div>
@@ -70,7 +71,7 @@ canvas.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: bl
 </div>
 <main>
   <section class="stage" id="stage"></section>
-  <h2 id="gal-title">全部天气（小卡片）</h2>
+  <h2 id="gal-title"></h2>
   <section class="gallery" id="gallery"></section>
 </main>
 <script>
@@ -78,18 +79,45 @@ canvas.gl { position: absolute; inset: 0; width: 100%; height: 100%; display: bl
 const params = new URLSearchParams(location.search);
 window.__ov = {};
 const num = (k, d) => (k in window.__ov ? window.__ov[k] : params.has(k) ? Number(params.get(k)) : d);
-// cov：云量；gray：天空偏灰的程度；dark：压暗；sun：太阳光露出多少
-const CONDITIONS = [
-  { id: "clear", label: "晴", cov: 0, sun: 1 },
-  { id: "partly", label: "少云", cov: 0.4, sun: 1, wind: 1 },
-  { id: "cloudy", label: "多云", cov: 0.66, sun: 0.7, gray: 0.14, wind: 1.1 },
-  { id: "overcast", label: "阴", cov: 0.95, sun: 0, gray: 1, wind: 0.8 },
-  { id: "fog", label: "雾", cov: 0.8, sun: 0, gray: 0.9, fog: 1, wind: 0.4 },
-  { id: "drizzle", label: "小雨", cov: 0.95, sun: 0, gray: 1, rain: 0.35, dark: 0.45, wind: 1 },
-  { id: "rain", label: "大雨", cov: 1, sun: 0, gray: 1, rain: 1, heavy: 0.7, dark: 1, wind: 1.5 },
-  { id: "storm", label: "雷阵雨", cov: 1, sun: 0, gray: 1, rain: 1, heavy: 1, storm: 1, dark: 1.25, wind: 2 },
-  { id: "snow", label: "小雪", cov: 0.95, sun: 0, gray: 0.9, snow: 1, dark: 0.1, wind: 0.6 },
+// 每种天气的画面由几个旋钮决定。正式实现时这些旋钮由数据里的云量、降水类型与强度、风速来定，这里的按钮只是其中的几个取值：
+// cov 云量；gray 天空偏灰的程度；dark 压暗；sun 太阳光露出多少；wind 云飘动的快慢；clouds 用哪一套云
+// rain 雨量；heavy 雨势（更快、更长、更斜）；fine 毛毛雨（细、短、慢）
+// snow 雪量；fall 下落快慢；drift 被风带着横移（相对下落速度的倍数）；streak 风大时雪花拉成短丝；sway 左右飘摆的幅度；fsize 雪片大小；falpha 雪片不透明度；pile 积雪快慢
+// hail 冰雹；storm 闪电；fog 雾气浓度；veil 雾气的颜色（白天）；blow 雾气被风吹着走的快慢；tint 天空染上的颜色与上、中、下三段各染多少；glow 太阳光的颜色
+const GROUPS = [
+  { id: "sky", label: "天空", items: [
+    { id: "clear", label: "晴", cov: 0, sun: 1, clouds: "none" },
+    { id: "partly", label: "少云", cov: 0.4, sun: 1, wind: 1, clouds: "few" },
+    { id: "cloudy", label: "多云", cov: 0.66, sun: 0.7, gray: 0.14, wind: 1.1, clouds: "broken" },
+    { id: "overcast", label: "阴", cov: 0.95, sun: 0, gray: 1, wind: 0.8, clouds: "flat" },
+  ] },
+  { id: "murk", label: "雾霾", items: [
+    { id: "fog", label: "雾", cov: 0.8, sun: 0, gray: 0.9, fog: 1, wind: 0.4, clouds: "flat" },
+    { id: "haze", label: "霾", cov: 0.9, sun: 0.6, gray: 1, fog: 0.6, wind: 0.3, clouds: "none", veil: "#8b867b", tint: ["#97907f", [0.15, 0.5, 0.85]], glow: [1.0, 0.95, 0.86] },
+    { id: "dust", label: "沙尘", cov: 0.9, sun: 0.35, gray: 1, fog: 0.85, wind: 2, clouds: "none", veil: "#8f7d60", tint: ["#a08a64", [0.55, 0.85, 1]], glow: [1.0, 0.9, 0.72], blow: 7 },
+  ] },
+  { id: "rain", label: "雨", items: [
+    { id: "drizzle", label: "毛毛雨", cov: 0.95, sun: 0, gray: 1, rain: 0.55, fine: 1, dark: 0.3, fog: 0.12, wind: 0.8 },
+    { id: "lightrain", label: "小雨", cov: 0.95, sun: 0, gray: 1, rain: 0.35, dark: 0.45, wind: 1 },
+    { id: "midrain", label: "中雨", cov: 1, sun: 0, gray: 1, rain: 0.65, heavy: 0.35, dark: 0.75, wind: 1.2 },
+    { id: "rain", label: "大雨", cov: 1, sun: 0, gray: 1, rain: 1, heavy: 0.7, dark: 1, wind: 1.5 },
+    { id: "downpour", label: "暴雨", cov: 1, sun: 0, gray: 1, rain: 1.6, heavy: 1, dark: 1.3, fog: 0.22, wind: 2.2 },
+    { id: "sunshower", label: "太阳雨", cov: 0.6, sun: 0.85, gray: 0.2, rain: 0.4, dark: 0.12, wind: 1.1, clouds: "broken" },
+  ] },
+  { id: "snow", label: "雪", items: [
+    { id: "snow", label: "小雪", cov: 0.95, sun: 0, gray: 0.9, snow: 0.3, fall: 0.85, drift: 0.1, dark: 0.1, wind: 0.6, clouds: "flat" },
+    { id: "midsnow", label: "中雪", cov: 0.95, sun: 0, gray: 0.9, snow: 0.6, fall: 1, drift: 0.16, dark: 0.15, fog: 0.1, wind: 0.8, clouds: "flat" },
+    { id: "heavysnow", label: "大雪", cov: 1, sun: 0, gray: 0.95, snow: 1, fall: 1.15, drift: 0.26, dark: 0.2, fog: 0.24, wind: 1, clouds: "flat" },
+    { id: "blizzard", label: "暴雪", cov: 1, sun: 0, gray: 1, snow: 0.7, fall: 1.9, drift: 1.5, streak: 3, sway: 0.25, fsize: 0.6, falpha: 0.72, dark: 0.3, fog: 0.42, blow: 9, wind: 2.4, clouds: "flat" },
+    { id: "sleet", label: "雨夹雪", cov: 1, sun: 0, gray: 1, rain: 0.4, snow: 0.4, fall: 2.1, drift: 0.12, streak: 1.5, sway: 0.4, fsize: 0.85, pile: 0.12, dark: 0.6, wind: 1 },
+  ] },
+  { id: "storm", label: "雷暴冰雹", items: [
+    { id: "storm", label: "雷阵雨", cov: 1, sun: 0, gray: 1, rain: 1, heavy: 1, storm: 1, dark: 1.25, wind: 2 },
+    { id: "stormhail", label: "雷阵雨伴冰雹", cov: 1, sun: 0, gray: 1, rain: 0.8, heavy: 0.9, storm: 1, hail: 0.8, dark: 1.25, wind: 2 },
+    { id: "hail", label: "冰雹", cov: 1, sun: 0, gray: 1, rain: 0.45, heavy: 0.6, hail: 1, dark: 1.15, wind: 1.6 },
+  ] },
 ];
+const CONDITIONS = GROUPS.flatMap((g) => g.items.map((c) => ({ clouds: "rain", ...c, group: g.id })));
 const SIZES = [{ id: "s", label: "小 2×2" }, { id: "m", label: "中 4×2" }, { id: "l", label: "大 4×4" }];
 const FPS = [{ id: "30", label: "30" }, { id: "60", label: "60" }];
 const state = {
@@ -199,9 +227,9 @@ uniform vec3 u_lit, u_amb; uniform float u_hazeK, u_fwdK;   // 云的受光色�
 uniform vec4 u_LA[3], u_LB[3], u_LC[3], u_LD[3]; uniform int u_nl;
 uniform vec2 u_wind; uniform float u_seed, u_jit, u_vig, u_bump;
 uniform float u_stars; uniform vec3 u_moon; uniform float u_moonPhase;
-uniform float u_fog; uniform vec3 u_fogCol;
+uniform float u_fog; uniform vec3 u_fogCol; uniform vec2 u_fogV;   // 雾气：浓度、颜色；被风吹着走的快慢、是否顺着风拉成条（0 否 1 是）
 uniform float u_flash; uniform vec2 u_flashAt;
-uniform float u_snow, u_snowWind;
+uniform float u_snow; uniform vec4 u_snowP; uniform vec2 u_snowQ; uniform vec3 u_snowCol;   // 雪量；下落快慢、横移（相对下落的倍数）、飘摆幅度、拉成短丝的倍数；雪片大小、不透明度
 out vec4 o;
 ${HASH}
 const mat2 R1 = mat2(0.8, -0.6, 0.6, 0.8);
@@ -291,13 +319,24 @@ vec4 cloudLayer(int i, vec3 rd, vec2 q, vec3 sd, vec3 sky){
   c = mix(c, sky, hz * 0.8); a *= 1.0 - hz * 0.55;
   return vec4(c * a, a);
 }
-float flake(vec2 g, float cell, float speed, float r, float soft, float seed){
-  float yy = g.y + u_time * speed;
-  vec2 p = vec2(g.x + sin(u_time * 0.7 + yy / cell * 1.9 + seed) * cell * 0.18 - u_time * speed * 0.2 * u_snowWind, yy) / cell;
+// 一层雪花：画面切成格子，每格最多一片，dens 是有雪花的格子占几成。
+// 像素坐标 y 向下，雪花往下落，所以取样位置是 y 减去落下的距离（上一版 y 向上，那里是加）
+float flake(vec2 g, float cell, float speed, float r, float soft, float seed, float dens){
+  float fall = u_time * speed * u_snowP.x;
+  vec2 m = vec2(g.x - fall * u_snowP.y, g.y - fall);          // 跟着雪花走的坐标：往下落，同时被风带着往右
+  m.x += sin(u_time * 0.7 + m.y / cell * 1.9 + seed) * cell * 0.18 * u_snowP.z;
+  m.x += hash12(vec2(floor(m.y / cell), seed * 7.3)) * cell;   // 每一行横向错开，雪片不排成一列列
+  vec2 p = m / cell;
   vec2 id = floor(p); vec2 f = fract(p) - 0.5;
-  vec2 off = (hash22(id + seed) - 0.5) * 0.7;
+  float st = u_snowP.w;
+  vec2 off = (hash22(id + seed) - 0.5) * 0.7 * (1.0 - 0.22 * (st - 1.0));
   float rr = r * (0.6 + 0.7 * hash12(id + seed * 4.4));
-  return step(0.35, hash12(id + seed * 1.7)) * smoothstep(rr, rr * (1.0 - soft), length(f - off) * cell);
+  vec2 dv = (f - off) * cell;
+  if (st > 1.0) {                                             // 风大、落得快时沿运动方向拉成短丝
+    vec2 dir = normalize(vec2(u_snowP.y, 1.0));
+    dv = vec2(dot(dv, vec2(dir.y, -dir.x)), dot(dv, dir) / st);
+  }
+  return step(1.0 - dens, hash12(id + seed * 1.7)) * smoothstep(rr, rr * (1.0 - soft), length(dv));
 }
 void main(){
   vec2 frag = gl_FragCoord.xy;
@@ -350,14 +389,25 @@ void main(){
   col *= 1.0 - u_vig * (1.0 - exp(-r * 1.5));
   col += vec3(0.5, 0.56, 0.75) * u_flash * 0.12 * (1.2 - y);
   if (u_fog > 0.0) {                                         // 雾：一层慢慢飘的薄纱，越往下越浓
-    float f1 = texture(u_noise, vec2(q.x * 0.11 - u_time * 0.004, y * 0.34 + u_time * 0.001)).r;
-    float f2 = texture(u_noise, vec2(q.x * 0.23 + u_time * 0.006, y * 0.7 + 0.4)).b;
+    // 平时两层雾朝相反方向慢慢蹭；有风（沙尘、风雪）时两层都顺着风跑，并且横向拉成一条条
+    float sx = mix(1.0, 0.45, u_fogV.y), sy = mix(1.0, 2.2, u_fogV.y);
+    float f1 = texture(u_noise, vec2(q.x * 0.11 * sx - u_time * 0.004 * u_fogV.x, y * 0.34 * sy + u_time * 0.001)).r;
+    float f2 = texture(u_noise, vec2(q.x * 0.23 * sx + u_time * 0.006 * u_fogV.x * (1.0 - 2.6 * u_fogV.y), y * 0.7 * sy + 0.4)).b;
     float fd = smoothstep(0.25, 0.8, f1 * 0.65 + f2 * 0.35);
     col = mix(col, u_fogCol, clamp(0.35 + fd * 0.4 + 0.25 * y, 0.0, 1.0) * u_fog);
   }
   if (u_snow > 0.0) {
-    float s = flake(g, 15.0, 18.0, 1.0, 0.4, 1.0) * 0.6 + flake(g, 28.0, 30.0, 1.7, 0.5, 2.0) * 0.8 + flake(g, 60.0, 52.0, 3.4, 0.8, 3.0) * 0.5 + flake(g, 120.0, 85.0, 7.0, 0.95, 4.0) * 0.28;
-    col = mix(col, vec3(0.92, 0.95, 1.0), clamp(s, 0.0, 1.0) * u_snow);
+    // 远处的小而慢、近处的大而快，最近的一层是虚化的大雪片。雪量越大每层越密，再多出两层，雪片也大一点
+    float a = u_snow, big = (1.0 + 0.3 * clamp(a - 0.4, 0.0, 1.0)) * u_snowQ.x;
+    float s = flake(g, 15.0, 18.0, 1.0 * u_snowQ.x, 0.4, 1.0, clamp(0.2 + 0.5 * a, 0.0, 1.0)) * 0.6
+            + flake(g, 28.0, 30.0, 1.7 * big, 0.5, 2.0, clamp(0.25 + 0.6 * a, 0.0, 1.0)) * 0.8
+            + flake(g, 60.0, 52.0, 3.4 * big, 0.8, 3.0, clamp(0.2 + 0.7 * a, 0.0, 1.0)) * 0.5
+            + flake(g, 120.0, 85.0, 7.0 * big, 0.95, 4.0, clamp(0.15 + 0.7 * a, 0.0, 1.0)) * 0.28;
+    if (a > 0.45) {
+      s += flake(g, 21.0, 40.0, 2.3 * u_snowQ.x, 0.6, 5.0, clamp((a - 0.45) * 1.3, 0.0, 1.0)) * 0.75
+         + flake(g, 11.0, 14.0, 0.85 * u_snowQ.x, 0.4, 6.0, clamp((a - 0.45) * 1.5, 0.0, 1.0)) * 0.5;
+    }
+    col = mix(col, u_snowCol, clamp(s, 0.0, 1.0) * u_snowQ.y);
   }
   // 高光柔和收尾（太阳光最亮处不会一下子顶到纯白），再转成屏幕用的编码
   col = mix(col, 0.62 + 0.38 * (1.0 - exp(-(col - 0.62) / 0.38)), step(0.62, col));
@@ -442,14 +492,14 @@ uniform vec2 u_css;
 out vec2 v_p; out vec4 v_seg; out vec2 v_wa;
 void main(){
   vec2 t = i_seg.zw - i_seg.xy; float len = length(t); vec2 dir = len > 1e-3 ? t / len : vec2(0.0, 1.0); vec2 nrm = vec2(-dir.y, dir.x);
-  float pad = i_wa.x * 0.5 + 1.0;
+  float pad = abs(i_wa.x) * 0.5 + 1.0;
   vec2 p = mix(i_seg.xy - dir * pad, i_seg.zw + dir * pad, a.y * 0.5 + 0.5) + nrm * a.x * pad;
   v_p = p; v_seg = i_seg; v_wa = i_wa;
   gl_Position = vec4(p.x / u_css.x * 2.0 - 1.0, 1.0 - p.y / u_css.y * 2.0, 0.0, 1.0);
 }`;
 const LINE_FS = `#version 300 es
 precision highp float;
-uniform vec4 u_panels[3]; uniform int u_nPanels; uniform vec3 u_col;
+uniform vec4 u_panels[3]; uniform int u_nPanels; uniform vec3 u_col, u_white;
 in vec2 v_p; in vec4 v_seg; in vec2 v_wa;
 out vec4 o;
 float sdRound(vec2 p, vec2 c, vec2 hs, float r){ vec2 q = abs(p - c) - hs + r; return length(max(q, 0.0)) + min(max(q.x, q.y), 0.0) - r; }
@@ -457,10 +507,11 @@ void main(){
   vec2 pa = v_p - v_seg.xy, ba = v_seg.zw - v_seg.xy;
   float h = clamp(dot(pa, ba) / max(dot(ba, ba), 1e-4), 0.0, 1.0);
   float d = length(pa - ba * h);
-  float al = v_wa.y * smoothstep(v_wa.x * 0.5 + 0.35, v_wa.x * 0.5 - 0.35, d) * mix(0.25, 1.0, h);   // 头亮尾淡
+  float w = abs(v_wa.x); bool ice = v_wa.x < 0.0;           // 线宽为负：冰雹（白、实）
+  float al = v_wa.y * smoothstep(w * 0.5 + 0.35, w * 0.5 - 0.35, d) * mix(ice ? 0.5 : 0.25, 1.0, h);   // 头亮尾淡
   for (int i = 0; i < 3; i++) { if (i >= u_nPanels) break; vec4 r = u_panels[i]; al *= smoothstep(-0.6, 0.4, sdRound(v_p, r.xy + r.zw * 0.5, r.zw * 0.5, 14.0)); }
   if (al < 0.003) discard;
-  o = vec4(u_col * al, al);
+  o = vec4((ice ? u_white : u_col) * al, al);
 }`;
 
 // 面板上的水珠：每颗一个小方块（实例化绘制）。水填平了磨砂，透过水看到的是清楚的天空；
@@ -547,9 +598,25 @@ function scene2(condId, hour, size, w, h) {
   const dusk = clamp(1 - Math.abs(e + 0.08) / 0.12);        // 太阳刚落下
   const night = clamp((-e - 0.1) / 0.25);
   const gray = c.gray ?? 0, dark = c.dark ?? 0;
-  const clear = sampleSky(SKY_CLEAR, e), grayS = sampleSky(SKY_GRAY, e);
-  const sky = clear.map((col, k) => { const m = mixLab(col, grayS[k], gray); const kk = 1 - 0.24 * dark * (0.55 + 0.45 * day); return [m[0] * kk, m[1], m[2] + 0.004 * dark]; });
+  // 天空三段色：晴天、阴天两套按 gray 混合，按 dark 压暗；霾和沙尘再把色彩往 tint 上带（明暗不变，暗处少带一些）
+  const tintLab = c.tint ? lab(c.tint[0]) : null;
+  const skyAt = (ee) => {
+    const dd = clamp((ee + 0.1) / 0.3), clear = sampleSky(SKY_CLEAR, ee), grayS = sampleSky(SKY_GRAY, ee);
+    return clear.map((col, k) => {
+      const m = mixLab(col, grayS[k], gray), kk = 1 - 0.24 * dark * (0.55 + 0.45 * dd);
+      const out = [m[0] * kk, m[1], m[2] + 0.004 * dark];
+      if (!tintLab) return out;
+      const t = c.tint[1][k], ch = Math.min(1, out[0] / tintLab[0]);
+      return [out[0], out[1] + (tintLab[1] * ch - out[1]) * t, out[2] + (tintLab[2] * ch - out[2]) * t];
+    });
+  };
+  const sky = skyAt(e);
   if (size !== "l") sky[2] = mixLab(sky[1], sky[2], size === "s" ? 0.4 : 0.55);
+  const lumOf = (v) => 0.2126 * v[0] + 0.7152 * v[1] + 0.0722 * v[2];
+  const midLin = labToRgb(sky[1]).map(toLin);
+  let fogCol = mix3(midLin, [0.3, 0.32, 0.36], 0.5 * day + 0.08);
+  // 指定了雾气颜色的（霾、沙尘）：白天用这个颜色，其他时候按天空变暗的比例一起变暗
+  if (c.veil) fogCol = mul3(lin3(c.veil), clamp(lumOf(midLin) / lumOf(labToRgb(skyAt(1)[1]).map(toLin)), 0.03, 1.2));
   // 太阳锚点始终在画面之外，只有光洒进来。上午九点到下午三点多在卡片正上方；
   // 更早、更晚时先往右上方远离画面（光淡出），再从右下角之外回来（日出日落的光从右下方来），不经过右上角的文字
   const up = clamp(e), aspect = w / h;
@@ -573,14 +640,14 @@ function scene2(condId, hour, size, w, h) {
   const dk = clamp(dark), ex = 1 - (1 - num("expo", 0.84)) * day * (1 - gray);
   lit = mul3(lit, (1 - 0.78 * dk) * ex); amb = mul3(amb, (1 - 0.62 * dk) * ex);
   return {
-    c, e, day, golden, dusk, night, sky, sun, sunCol, lit, amb, skyGlow: mix3([0.8, 0.92, 1.0], sunCol, clamp(golden + dusk)),
+    c, e, day, golden, dusk, night, sky, sun, sunCol, lit, amb, skyGlow: mix3(c.glow ?? [0.8, 0.92, 1.0], sunCol, clamp(golden + dusk)),
     glowK: sunVis * (num("glow", 0.85) - 0.25 * golden) * (1 - 0.5 * gray), sunVis,
-    halo: sunVis * num("halo", 0.07) * (1 - clamp(tt * 2.5)), ghost: sunVis * num("ghost", 0.05) * (1 - clamp(tt * 2.5)) * (size === "s" ? 0.7 : 1),
+    halo: (c.fog ? 0 : 1) * sunVis * num("halo", 0.07) * (1 - clamp(tt * 2.5)), ghost: (c.fog ? 0 : 1) * sunVis * num("ghost", 0.05) * (1 - clamp(tt * 2.5)) * (size === "s" ? 0.7 : 1),
     fwdK: 0.9 * sunVis + 0.25 * dusk * (1 - gray),
     hazeK: 0.22 + 0.25 * gray,
     moon: [size === "s" ? 0.78 : 0.62, size === "m" ? 0.2 : 0.16, clamp((-e - 0.05) / 0.25) * clamp(1 - 1.15 * c.cov)],
     stars: clamp((-e - 0.1) / 0.3) * clamp(1 - c.cov * 1.05),
-    fogCol: mix3(labToRgb(sky[1]).map(toLin), [0.3, 0.32, 0.36], 0.5 * day + 0.08),
+    fogCol,
     layers: layersFor(c, { day, golden, dusk, night }),
   };
 }
@@ -593,12 +660,12 @@ function layersFor(c, t) {
   const puff = (th, dens, scale = num("scale", 1.5), fray = num("fray", 0.3)) => [[scale, th, num("soft", 0.3), dens * num("dens", 0.7)], [1.15, num("warp", 0.12), num("erode", 0.42), 0.007], [num("billow", 0.5), num("shadow", 1.3), 0.3, 0.8], [0.3, num("dscale", 1.4), fray, num("thick", 0.1) / scale]];
   const mass = (th, dens) => puff(th, dens, num("mscale", 0.95), num("mfray", 0.5));
   const sheet = (th, a) => [[0.62, th, 0.5, a], [1.6, 0.35, 0.25, 0.003], [0.5, 0.7, 0.5, 1.0], [0.1, 2.6, 0.4, 0]];
-  switch (c.id) {
-    case "clear": return [];
-    case "partly": return [wisp(0.58, 0.45), puff(num("th", 0.57), 1)];
-    case "cloudy": return [wisp(0.5, 0.55), mass(num("th", 0.5), 1)];
-    case "overcast": case "fog": case "snow": return [sheet(0.3, 0.9), mass(0.46, 1)];
-    default: return [sheet(0.28, 0.95), mass(0.44, 1.1)];
+  switch (c.clouds) {
+    case "none": return [];                                              // 晴；霾和沙尘只有雾气
+    case "few": return [wisp(0.58, 0.45), puff(num("th", 0.57), 1)];      // 少云
+    case "broken": return [wisp(0.5, 0.55), mass(num("th", 0.5), 1)];     // 多云
+    case "flat": return [sheet(0.3, 0.9), mass(0.46, 1)];                 // 阴、雾、雪
+    default: return [sheet(0.28, 0.95), mass(0.44, 1.1)];                 // 雨、雷暴、冰雹
   }
 }
 
@@ -674,7 +741,7 @@ class SkyCard {
     gl.texStorage2D(gl.TEXTURE_2D, 1, gl.R8, this.snowW, this.snowRows);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
-    this.drops = []; this.streaks = []; this.sparks = [];
+    this.drops = []; this.streaks = []; this.sparks = []; this.stones = [];
     this.lastT = null; this.lastSky = -1e9;
     this.seed = SEED == null ? Math.random() * 10 : SEED;
     this.timer = gl.getExtension("EXT_disjoint_timer_query_webgl2");
@@ -696,8 +763,8 @@ class SkyCard {
     gl.uniform4fv(s("LA"), pack(0)); gl.uniform4fv(s("LB"), pack(1)); gl.uniform4fv(s("LC"), pack(2)); gl.uniform4fv(s("LD"), pack(3)); gl.uniform1i(s("nl"), L.length);
     const wk = (c.wind ?? 1) * num("speed", 1.4); gl.uniform2f(s("wind"), wk, 0.12 * wk); gl.uniform1f(s("seed"), this.seed); gl.uniform1f(s("jit"), num("jit", 0)); gl.uniform1f(s("bump"), num("bump", 1.2)); gl.uniform1f(s("vig"), num("vig", 0.3) * sc.day);
     gl.uniform1f(s("stars"), sc.stars); gl.uniform3fv(s("moon"), sc.moon); gl.uniform1f(s("moonPhase"), MOON_PHASE);
-    gl.uniform1f(s("fog"), c.fog ?? 0); gl.uniform3fv(s("fogCol"), sc.fogCol);
-    gl.uniform1f(s("snow"), c.snow ?? 0); gl.uniform1f(s("snowWind"), c.wind ?? 1);
+    gl.uniform1f(s("fog"), c.fog ?? 0); gl.uniform3fv(s("fogCol"), sc.fogCol); gl.uniform2f(s("fogV"), c.blow ?? 1, c.blow ? 1 : 0);
+    gl.uniform1f(s("snow"), c.snow ?? 0); gl.uniform4f(s("snowP"), c.fall ?? 1, c.drift ?? 0.12, c.sway ?? 1, c.streak ?? 1); gl.uniform2f(s("snowQ"), c.fsize ?? 1, c.falpha ?? 1); gl.uniform3fv(s("snowCol"), mix3([0.46, 0.5, 0.6], [0.92, 0.95, 1.0], sc.day));
     gl.useProgram(this.pFinal.p);
     const f = this.pFinal.u;
     gl.uniform1i(f("sky"), 0); gl.uniform1i(f("snowH"), 1);
@@ -711,7 +778,8 @@ class SkyCard {
     gl.uniform1i(this.pDrop.u("sky"), 0); gl.uniform2f(this.pDrop.u("css"), this.cssW, this.cssH); gl.uniform1f(this.pDrop.u("lod"), Math.log2(this.W / this.sw));
     gl.useProgram(this.pLine.p);
     gl.uniform2f(this.pLine.u("css"), this.cssW, this.cssH); gl.uniform4fv(this.pLine.u("panels"), flat); gl.uniform1i(this.pLine.u("nPanels"), this.panels.length);
-    const rc = mix3([0.5, 0.56, 0.68], [0.86, 0.9, 0.97], sc.day); gl.uniform3fv(this.pLine.u("col"), rc);
+    const rc = mix3(mix3([0.5, 0.56, 0.68], [0.86, 0.9, 0.97], sc.day), [1, 1, 1], 0.8 * sc.sunVis); gl.uniform3fv(this.pLine.u("col"), rc);
+    gl.uniform3fv(this.pLine.u("white"), mix3([0.62, 0.66, 0.74], [0.97, 0.98, 1.0], sc.day));
   }
   // 面板上沿在 x 处的高度（两端是圆角）；不在面板范围内返回 null
   edgeY(p, x) {
@@ -730,17 +798,17 @@ class SkyCard {
     }
   }
   step(dt, t) {
-    const c = this.sc.c, rain = c.rain ?? 0, heavy = c.heavy ?? 0, snow = c.snow ?? 0;
+    const c = this.sc.c, rain = c.rain ?? 0, heavy = c.heavy ?? 0, snow = c.snow ?? 0, fine = c.fine ?? 0, hail = c.hail ?? 0;
     const R = Math.random, W = this.cssW, H = this.cssH;
     // ---------- 雨丝：远处的又短又淡又慢，近处的长、亮、快；近处的碰到面板上沿会溅起水花 ----------
     if (rain > 0) {
-      const slant = 0.015 + 0.05 * heavy * (c.storm ? 1.6 : 1);
+      const slant = 0.015 + 0.05 * heavy * (c.storm ? 1.6 : 1), lit = 1 + 1.1 * this.sc.sunVis;   // 有太阳时雨丝被照亮
       const spawn = (near) => {
-        const sp = near ? 560 + R() * 200 + 120 * heavy : 300 + R() * 170 + 80 * heavy;
-        const len = near ? 13 + R() * 12 + 6 * heavy : 5 + R() * 8;
-        this.streaks.push({ x: -30 + R() * (W + 40), y: -R() * 30, vy: sp, vx: sp * slant, len, w: near ? 1.1 : 0.75, a: near ? 0.3 + R() * 0.25 : 0.1 + R() * 0.14, near });
+        const sp = (near ? 560 + R() * 200 + 120 * heavy : 300 + R() * 170 + 80 * heavy) * (1 - 0.45 * fine);
+        const len = (near ? 13 + R() * 12 + 6 * heavy : 5 + R() * 8) * (1 - 0.55 * fine);
+        this.streaks.push({ x: -30 + R() * (W + 40), y: -R() * 30, vy: sp, vx: sp * slant, len, w: (near ? 1.1 : 0.75) * (1 - 0.25 * fine), a: Math.min(0.9, (near ? 0.3 + R() * 0.25 : 0.1 + R() * 0.14) * (1 - 0.2 * fine) * lit), near });
       };
-      let nNear = rain * (0.06 + 0.12 * heavy) * W * dt, nFar = rain * (0.22 + 0.3 * heavy) * W * dt;
+      let nNear = rain * (0.06 + 0.12 * heavy) * (1 - 0.5 * fine) * W * dt, nFar = rain * (0.22 + 0.3 * heavy) * (1 + 0.9 * fine) * W * dt;
       while (R() < nNear) { nNear -= 1; spawn(true); }
       while (R() < nFar) { nFar -= 1; spawn(false); }
     }
@@ -752,8 +820,8 @@ class SkyCard {
         const ey = this.edgeY(p, s.x);
         if (ey != null && y0 <= ey && s.y >= ey) {              // 这一帧里穿过了面板上沿：停在上沿，溅起两三颗小水珠
           s.y = ey; hit = true;
-          const n = 3 + (R() < 0.5 ? 1 : 0);
-          for (let i = 0; i < n; i++) this.sparks.push({ x: s.x, y: ey - 0.4, vx: (R() - 0.5) * 130, vy: -(30 + R() * 85), g: 520, age: 0, life: 0.15 + R() * 0.17, r: 0.4 + R() * 0.4, a: 0.5 + R() * 0.35, ey });
+          const n = fine ? 1 + (R() < 0.4 ? 1 : 0) : 3 + (R() < 0.5 ? 1 : 0), vk = 1 - 0.45 * fine;
+          for (let i = 0; i < n; i++) this.sparks.push({ x: s.x, y: ey - 0.4, vx: (R() - 0.5) * 130 * vk, vy: -(30 + R() * 85) * vk, g: 520, age: 0, life: 0.15 + R() * 0.17, r: (0.4 + R() * 0.4) * (1 - 0.3 * fine), a: 0.5 + R() * 0.35, ey });
           this.sparks.push({ x: s.x, y: ey - 0.6, vx: 0, vy: 0, g: 0, age: 0, life: 0.07, r: 1.5, a: 0.4, ey, flat: true });
           break;
         }
@@ -769,11 +837,35 @@ class SkyCard {
       if (p.age < p.life && p.y <= p.ey) sk.push(p);
     }
     this.sparks = sk;
+    // ---------- 冰雹：比雨点大、白、落得快。砸到面板上沿会弹起一两下，有的停在上沿，过几秒化掉 ----------
+    if (hail > 0) {
+      let n = hail * 0.03 * W * dt;
+      while (R() < n) { n -= 1; const vy = 640 + R() * 260; this.stones.push({ x: -30 + R() * (W + 40), y: -8 - R() * 24, vx: vy * (0.04 + 0.05 * heavy) + (R() - 0.5) * 30, vy, g: 0, r: 1.0 + R() * R() * 1.5, a: 0.8 + R() * 0.2, hits: 0, rest: 0, gone: 0 }); }
+    }
+    const st = [];
+    for (const s of this.stones) {
+      if (s.rest > 0) { s.rest -= dt; if (s.rest > 0) st.push(s); continue; }      // 停在上沿的：慢慢化掉
+      if (s.gone > 0) { s.gone -= dt; if (s.gone <= 0) continue; }                 // 弹到面板前面去的：很快淡出
+      const y0 = s.y; s.vy += s.g * dt; s.x += s.vx * dt; s.y += s.vy * dt;
+      if (s.vy > 0 && !s.gone) for (const p of this.panels) {
+        const ey = this.edgeY(p, s.x);
+        if (ey == null || y0 + s.r > ey + 0.01 || s.y + s.r < ey) continue;
+        s.y = ey - s.r; s.hits++;
+        const up = s.vy * (s.hits === 1 ? 0.24 + R() * 0.14 : 0.3 + R() * 0.15);
+        if (s.hits >= 3 || up < 40) {
+          if (R() < 0.5) { s.rest = 1.2 + R() * 2.6; s.rest0 = s.rest; s.vx = 0; s.vy = 0; }
+          else { s.gone = 0.12; s.vy = -up; s.vx *= 0.5; s.g = 1500; }
+        } else { s.vy = -up; s.vx = s.vx * 0.35 + (R() - 0.5) * (s.hits === 1 ? 170 : 60); s.g = 1500; }
+        break;
+      }
+      if (s.y - 14 < H + 5 && s.x > -50 && s.x < W + 50) st.push(s);
+    }
+    this.stones = st.slice(-300);
     // ---------- 面板表面的水珠 ----------
     if (rain > 0) {
       for (const p of this.panels) {
-        let n = rain * p.w * p.h * 0.00012 * dt;
-        while (R() < n) { n -= 1; this.impact(p, p.x + 6 + R() * (p.w - 12), p.y + 6 + R() * (p.h - 12), 0.9 + R() * R() * 2.4, t); }
+        let n = rain * p.w * p.h * 0.00012 * (1 + fine) * dt;
+        while (R() < n) { n -= 1; this.impact(p, p.x + 6 + R() * (p.w - 12), p.y + 6 + R() * (p.h - 12), (0.9 + R() * R() * 2.4) * (1 - 0.45 * fine), t); }
       }
     }
     const next = [];
@@ -805,9 +897,10 @@ class SkyCard {
     const SW = this.snowW, rows = this.snowRows;
     for (let row = 0; row < rows; row++) {
       if (!(row < this.panels.length || row === 3)) continue;
-      const base = row * SW, maxH = row === 3 ? 1 : 0.62;
+      const pile = c.pile ?? 0.75 + 0.75 * snow;
+      const base = row * SW, maxH = Math.min(1, (row === 3 ? 1 : 0.62) * (c.pile != null ? clamp(c.pile * 2.5) : 0.65 + 0.5 * snow));
       if (snow > 0) {
-        let n = snow * dt * (row === 3 ? 40 : 28);
+        let n = pile * dt * (row === 3 ? 40 : 28);
         while (R() < n) { n -= 1; const x = Math.floor(R() * SW), w = 2 + Math.floor(R() * 4), amt = 0.004 + R() * 0.006; for (let k = -w; k <= w; k++) { const i = x + k; if (i >= 0 && i < SW) this.snowData[base + i] = Math.min(maxH, this.snowData[base + i] + amt * (1 - (k / (w + 1)) ** 2)); } }
       } else {
         for (let i = 0; i < SW; i++) this.snowData[base + i] = Math.max(0, this.snowData[base + i] - dt * 0.004);
@@ -861,11 +954,16 @@ class SkyCard {
     gl.drawArrays(gl.TRIANGLES, 0, 3);
     gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
     // 3. 雨丝与水花
-    const fs = this.frameStreaks ?? [], n = Math.min(this.MAXL, fs.length + this.sparks.length);
+    const fs = this.frameStreaks ?? [], n = Math.min(this.MAXL, fs.length + this.sparks.length + this.stones.length);
     if (n) {
       const L = this.lineData; let k = 0;
       for (const s of fs) { if (k >= n) break; const lx = s.len * (s.vx / s.vy); L.set([s.x - lx, s.y - s.len, s.x, s.y, s.w, s.a], k++ * 6); }
       for (const p of this.sparks) { if (k >= n) break; const fade = 1 - p.age / p.life, bl = p.flat ? 0 : 0.018; L.set(p.flat ? [p.x - 2.2, p.y, p.x + 2.2, p.y, 0.8, p.a * fade] : [p.x - p.vx * bl, p.y - p.vy * bl, p.x, p.y, p.r * 2, p.a * Math.min(1, fade * 2)], k++ * 6); }
+      for (const s of this.stones) {                            // 冰雹：线宽写成负数，着色器按白色颗粒画
+        if (k >= n) break;
+        if (s.rest > 0) { const fade = Math.min(1, s.rest / 0.7); L.set([s.x, s.y + 0.5, s.x, s.y - 0.5, -s.r * 2 * (0.55 + 0.45 * fade), s.a * fade], k++ * 6); }
+        else { const bl = 0.006, fade = s.gone > 0 ? s.gone / 0.12 : 1; L.set([s.x - s.vx * bl, s.y - s.vy * bl, s.x, s.y, -s.r * 2, s.a * fade], k++ * 6); }
+      }
       gl.bindVertexArray(this.lvao);
       gl.bindBuffer(gl.ARRAY_BUFFER, this.linst); gl.bufferSubData(gl.ARRAY_BUFFER, 0, L, 0, k * 6);
       gl.useProgram(this.pLine.p);
@@ -949,7 +1047,10 @@ function render() {
   const gal = document.getElementById("gallery");
   gal.innerHTML = "";
   document.getElementById("gal-title").hidden = !state.gallery;
-  if (state.gallery) for (const c of CONDITIONS) { const f = document.createElement("figure"); gal.appendChild(f); buildCard("s", c.id, f); f.insertAdjacentHTML("beforeend", `<figcaption>${c.label}</figcaption>`); }
+  // 小卡片只放和当前天气同一组的几种：浏览器一页里同时能开的 WebGL 画布有上限（电脑 16 个、安卓手机 8 个），20 种全开会有画布被回收
+  const grp = GROUPS.find((g) => g.id === condById(state.cond).group);
+  document.getElementById("gal-title").textContent = `同一组的天气（小卡片）：${grp.label}`;
+  if (state.gallery) for (const c of grp.items) { const f = document.createElement("figure"); gal.appendChild(f); buildCard("s", c.id, f); f.insertAdjacentHTML("beforeend", `<figcaption>${c.label}</figcaption>`); }
   if (!rafId) rafId = requestAnimationFrame(loop);
   syncControls();
   window.__ready = true;
@@ -965,7 +1066,12 @@ function chipGroup(id, items, key) {
   const g = document.getElementById(id);
   for (const it of items) { const b = document.createElement("button"); b.className = "chip"; b.textContent = it.label; b.dataset.value = it.id; b.onclick = () => { state[key] = it.id; render(); }; g.appendChild(b); }
 }
-chipGroup("g-cond", CONDITIONS, "cond");
+for (const g of GROUPS) {
+  const box = document.createElement("div"); box.className = "group"; box.id = `g-cond-${g.id}`;
+  box.innerHTML = `<span class="label">${g.label}</span>`;
+  document.getElementById("g-cond").appendChild(box);
+  chipGroup(box.id, g.items, "cond");
+}
 const hourEl = document.getElementById("hour");
 hourEl.oninput = () => { state.hour = Number(hourEl.value); render(); };
 document.querySelectorAll("[data-hour]").forEach((b) => (b.onclick = () => { state.hour = Number(b.dataset.hour); render(); }));

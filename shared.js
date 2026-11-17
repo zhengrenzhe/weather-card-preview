@@ -87,6 +87,8 @@ function cloudShape(fill, shade, t = "") {
 const sunShape = (cx, cy, r) => { let s = `<circle cx='${cx}' cy='${cy}' r='${r}' fill='${YELLOW}'/>`; for (let i = 0; i < 8; i++) { const a = (i * Math.PI) / 4, r1 = r + 1.9, r2 = r + 3.9; s += `<line x1='${fmt(cx + Math.cos(a) * r1)}' y1='${fmt(cy + Math.sin(a) * r1)}' x2='${fmt(cx + Math.cos(a) * r2)}' y2='${fmt(cy + Math.sin(a) * r2)}' stroke='${YELLOW}' stroke-width='1.7' stroke-linecap='round'/>`; } return s; };
 const moonShape = (t = "") => `<path transform='${t}' d='M14.2 3.6a7.4 7.4 0 0 0 6.2 11.6A8.8 8.8 0 1 1 14.2 3.6z' fill='${MOON}'/>`;
 const drops = (n) => [8.4, 12.4, 16.4, 10.4, 14.4].slice(0, n).map((x, i) => `<line x1='${x}' y1='${i < 3 ? 19.4 : 21.6}' x2='${x - 0.9}' y2='${i < 3 ? 21.4 : 23.4}' stroke='${DROP}' stroke-width='1.7' stroke-linecap='round'/>`).join("");
+const flakes = (xs) => xs.map((x, i) => { const y = i === 1 ? 21.8 : 20.6; return `<g stroke='#fff' stroke-width='1.2' stroke-linecap='round'><line x1='${x - 1.5}' y1='${y}' x2='${x + 1.5}' y2='${y}'/><line x1='${x - 0.75}' y1='${y - 1.3}' x2='${x + 0.75}' y2='${y + 1.3}'/><line x1='${x + 0.75}' y1='${y - 1.3}' x2='${x - 0.75}' y2='${y + 1.3}'/></g>`; }).join("");
+const stones = (xs) => xs.map((x, i) => `<circle cx='${x}' cy='${i % 2 ? 22.2 : 20.4}' r='1.35' fill='#fff'/>`).join("");
 function icon(kind, night) {
   const W = "#ffffff", S = "#c9d4e2";
   let body;
@@ -95,16 +97,23 @@ function icon(kind, night) {
     case "partly": body = (night ? moonShape("translate(2 -3) scale(.82)") : sunShape(15.6, 8.2, 3.4)) + cloudShape(W, S, "translate(-2.2 2.6) scale(.92)"); break;
     case "cloudy": case "overcast": body = cloudShape(kind === "overcast" ? "#e3e8ef" : W, kind === "overcast" ? "#a9b4c3" : S, "translate(0 1)"); break;
     case "fog": body = cloudShape(W, S, "translate(0 -1)") + `<path d='M5 19.6h13.6M7.4 22.4h11.4' stroke='#d7dde6' stroke-width='1.7' stroke-linecap='round'/>`; break;
-    case "drizzle": body = cloudShape(W, S, "translate(0 -2)") + drops(2); break;
-    case "rain": body = cloudShape(W, S, "translate(0 -2)") + drops(5); break;
+    case "drizzle": case "lightrain": body = cloudShape(W, S, "translate(0 -2)") + drops(2); break;
+    case "sunshower": body = (night ? moonShape("translate(2 -3) scale(.82)") : sunShape(15.6, 7.2, 3.2)) + cloudShape(W, S, "translate(-2.2 0.6) scale(.92)") + drops(2); break;
+    case "midrain": body = cloudShape(W, S, "translate(0 -2)") + drops(3); break;
+    case "rain": case "downpour": body = cloudShape(W, S, "translate(0 -2)") + drops(5); break;
+    case "sleet": body = cloudShape(W, S, "translate(0 -2)") + drops(1) + flakes([13, 17.2]); break;
+    case "hail": body = cloudShape(W, S, "translate(0 -2)") + stones([8.4, 12.4, 16.4]); break;
+    case "stormhail": body = cloudShape(W, S, "translate(0 -2.5)") + `<path d='M11.4 14.6l-3 4.6h2.7l-1.5 4.2 4.6-5.6h-2.8l1.6-3.2z' fill='${YELLOW}'/>` + stones([16.6, 19.2]); break;
+    case "haze": case "dust": { const c = kind === "dust" ? "#e6c592" : "#d9d3c6"; body = `<path d='M5.2 8.2h13.6M3.6 12h13M6.8 15.8h13.6M5 19.6h10.6' stroke='${c}' stroke-width='1.8' stroke-linecap='round'/>`; break; }
     case "storm": body = cloudShape(W, S, "translate(0 -2.5)") + `<path d='M12.9 14.6l-3 4.6h2.7l-1.5 4.2 4.6-5.6h-2.8l1.6-3.2z' fill='${YELLOW}'/>`; break;
-    case "snow": body = cloudShape(W, S, "translate(0 -2)") + [8.4, 12.4, 16.4].map((x, i) => { const y = i === 1 ? 21.8 : 20.6; return `<g stroke='#fff' stroke-width='1.2' stroke-linecap='round'><line x1='${x - 1.5}' y1='${y}' x2='${x + 1.5}' y2='${y}'/><line x1='${x - 0.75}' y1='${y - 1.3}' x2='${x + 0.75}' y2='${y + 1.3}'/><line x1='${x + 0.75}' y1='${y - 1.3}' x2='${x - 0.75}' y2='${y + 1.3}'/></g>`; }).join(""); break;
+    case "snow": case "midsnow": case "heavysnow": case "blizzard": body = cloudShape(W, S, "translate(0 -2)") + flakes([8.4, 12.4, 16.4]); break;
   }
   return `<svg viewBox='0 0 24 24' aria-hidden='true'>${body}</svg>`;
 }
 const ARROW = `<svg viewBox='0 0 12 12' aria-hidden='true'><path d='M10.6 1.4L1.4 5.3l4 1.3 1.3 4z' fill='#fff'/></svg>`;
-const BASE_TEMP = { clear: 19, partly: 18, cloudy: 16, overcast: 14, fog: 9, drizzle: 13, rain: 12, storm: 22, snow: -2 };
-const NEXT = { clear: ["partly", "cloudy", "drizzle", "clear", "partly"], snow: ["snow", "cloudy", "clear", "partly", "snow"] };
+const BASE_TEMP = { clear: 19, partly: 18, cloudy: 16, overcast: 14, fog: 9, haze: 11, dust: 23, drizzle: 13, lightrain: 13, sunshower: 26, midrain: 12, rain: 12, downpour: 24, storm: 22, stormhail: 21, hail: 17, snow: -2, midsnow: -4, heavysnow: -6, blizzard: -12, sleet: 1 };
+const SNOWY = ["snow", "cloudy", "clear", "partly", "snow"];
+const NEXT = { clear: ["partly", "cloudy", "drizzle", "clear", "partly"], snow: SNOWY, midsnow: SNOWY, heavysnow: SNOWY, blizzard: SNOWY, sleet: SNOWY };
 function sampleData(condId, hour) {
   const t0 = BASE_TEMP[condId];
   const isNight = (h) => { const x = ((h % 24) + 24) % 24; return x < SUNRISE || x > SUNSET; };
